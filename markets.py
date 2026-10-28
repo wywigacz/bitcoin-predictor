@@ -69,6 +69,41 @@ LEVELS = {"breadth200": "Odsetek spółek S&P 500 powyżej średniej 200 dni", "
           "updown": "Odsetek spółek na plusie w tygodniu", "curve": "Krzywa rentowności (10 lat minus 3 miesiące)"}
 
 
+INTL = {  # indeks: (strona Wikipedii, kolumna symbolu, przelicznik na symbol Yahoo, kraj)
+    "DAX": ("DAX", "Ticker", lambda t: t, "Niemcy"), "Euro Stoxx 50": ("Euro_Stoxx_50", "Ticker", lambda t: t, "Strefa euro"),
+    "CAC 40": ("CAC_40", "Ticker", lambda t: t, "Francja"), "AEX": ("AEX_index", "Ticker", lambda t: t, "Holandia"),
+    "IBEX 35": ("IBEX_35", "Ticker", lambda t: t, "Hiszpania"), "FTSE 100": ("FTSE_100_Index", "Ticker", lambda t: t.replace(".", "-").rstrip("-") + ".L", "Wielka Brytania"),
+    "Hang Seng": ("Hang_Seng_Index", "Ticker", lambda t: t.split(":")[-1].strip().zfill(4) + ".HK", "Hongkong"),
+    "TSX 60": ("S%26P/TSX_60", "Symbol", lambda t: t.replace(".", "-") + ".TO", "Kanada"), "Nifty 50": ("NIFTY_50", "Symbol", lambda t: t + ".NS", "Indie"),
+    "ASX 50": ("S%26P/ASX_50", "Symbol", lambda t: t + ".AX", "Australia"), "SMI": ("Swiss_Market_Index", "Ticker", lambda t: t + ".SW", "Szwajcaria"),
+    "KOSPI 200": ("KOSPI_200", "Symbol", lambda t: str(t).zfill(6) + ".KS", "Korea Płd."), "Bovespa": ("List_of_companies_listed_on_B3", "Ticker", lambda t: t + ".SA", "Brazylia"),
+}
+INTL_CSV = C.DATA_DIR / "intl.csv"
+NAME_COLS = ("Company", "Name", "Company name")
+
+
+def intl_list():
+    rows = []
+    for idx, (page, col, fx, country) in INTL.items():
+        try:
+            r = requests.get(f"https://en.wikipedia.org/wiki/{page}", headers={"User-Agent": "btc-predictor/1.0 (research; wywigacz@users.noreply.github.com)"}, timeout=40)
+            tabs = [t for t in pd.read_html(io.StringIO(r.text)) if col in map(str, t.columns)]
+            t = max(tabs, key=len)
+            nc = next((c for c in NAME_COLS if c in t.columns), None)
+            for _, row in t.iterrows():
+                sym = str(row[col]).strip()
+                if not sym or sym == "nan":
+                    continue
+                rows.append({"Symbol": fx(sym), "Name": str(row[nc]) if nc else sym, "Index": idx, "Country": country})
+        except Exception:
+            continue
+    df = pd.DataFrame(rows).drop_duplicates("Symbol")
+    if len(df) > 200:
+        df.to_csv(INTL_CSV, index=False)
+        return df
+    return pd.read_csv(INTL_CSV) if INTL_CSV.exists() else df
+
+
 def sp500_list():
     try:
         r = requests.get("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
@@ -101,7 +136,8 @@ def _yahoo(sym, p1, p2):
 
 def update(workers=8, verbose=True):
     sp = sp500_list()
-    syms = list(ETF) + sp["Symbol"].tolist()
+    it = intl_list()
+    syms = list(dict.fromkeys(list(ETF) + sp["Symbol"].tolist() + it["Symbol"].tolist()))
     p1, p2 = 1313625600, int(time.time()) + 86400
     t0 = time.time()
     out, fails = {}, []
@@ -160,6 +196,9 @@ def comove(df, px, sp, weeks=104):
     R = np.log(P).diff().reindex(r_b.index)
     corr = R.apply(lambda s: s.corr(r_b) if s.notna().sum() >= weeks * 0.8 else np.nan).dropna()
     names = {**ETF, **dict(zip(sp["Symbol"], sp["Security"]))}
+    if INTL_CSV.exists():
+        it = pd.read_csv(INTL_CSV)
+        names.update({s: f"{n} ({i})" for s, n, i in zip(it["Symbol"], it["Name"], it["Index"])})
     sector = dict(zip(sp["Symbol"], sp["GICS Sector"]))
     tab = pd.DataFrame({"sym": corr.index, "r": corr.values})
     tab["name"] = tab["sym"].map(names)

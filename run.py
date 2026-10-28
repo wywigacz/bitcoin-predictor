@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 
+import numpy as np
 import pandas as pd
 
 import config as C
@@ -75,7 +76,28 @@ def update(full=False):
     except Exception as e:
         print("  [uwaga] świat:", str(e)[:120])
         raw_w = pd.read_csv(world.WORLD_CSV, index_col=0, parse_dates=True) if world.WORLD_CSV.exists() else None
-    T = world.transforms(raw_w.loc["2011-08-01":], df.index) if raw_w is not None and len(raw_w) else None
+    if raw_w is not None and len(raw_w):
+        extra = pd.DataFrame(index=df.index)
+        for k in ("ntx", "fees", "txvol", "uaddr", "difficulty", "hash", "minerrev", "adr", "volume", "mvrv", "fng"):
+            if k in df:
+                extra[f"d_{k}"] = df[k]
+        if "cbclose" in df:
+            extra["d_cbprem"] = (df["cbclose"] / df["close"] - 1) * 100
+        if "bfund" in df:
+            extra["d_bfund"] = df["bfund"].rolling(7, min_periods=3).mean() * 100
+        cols = raw_w.columns
+        if "y_btcf" in cols:
+            extra["d_basis"] = (raw_w["y_btcf"].reindex(df.index).ffill(limit=4) / df["close"] - 1) * 100
+        if "y_c_eth" in cols:
+            extra["d_ethbtc"] = raw_w["y_c_eth"].reindex(df.index) / df["close"]
+            alts = [c for c in ("y_c_xrp", "y_c_ltc", "y_c_bch", "y_c_xmr", "y_c_ada", "y_c_trx", "y_c_link", "y_c_doge") if c in cols]
+            if alts:                                     # stały koszyk notowany od 2017, liczony tylko gdy są wszystkie (bez skoków przy debiutach)
+                A = raw_w[alts].reindex(df.index).dropna()
+                extra["d_altbtc"] = np.exp(np.log(A).mean(axis=1)) / df["close"].reindex(A.index)
+        raw_x = raw_w.loc["2011-08-01":].join(extra, how="outer")
+        T = world.transforms(raw_x, df.index)
+    else:
+        T = None
     print("Regularność układu i skaner zależności ...")
     Rg = regularity.run(df)
     S = scan.run_scan(df, T) if T is not None else None

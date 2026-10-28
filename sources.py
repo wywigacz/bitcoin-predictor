@@ -91,7 +91,8 @@ def fetch_blockchain(since):
     else:
         span = f"{max((_today() - pd.Timestamp(since)).days + 5, 10)}days"
     out = {}
-    for field, chart in (("hash", "hash-rate"), ("minerrev", "miners-revenue")):
+    for field, chart in (("hash", "hash-rate"), ("minerrev", "miners-revenue"), ("ntx", "n-transactions"), ("fees", "transaction-fees-usd"),
+                         ("txvol", "estimated-transaction-volume-usd"), ("uaddr", "n-unique-addresses"), ("difficulty", "difficulty")):
         j = _get(f"https://api.blockchain.info/charts/{chart}?timespan={span}&sampled=false&format=json", timeout=60).json()
         out[field] = _ser({_day(v["x"]): v["y"] for v in j["values"]})
     return out
@@ -237,12 +238,49 @@ def fetch_cftc(since):
     return {"cot_lev": _ser(d)}
 
 
+def fetch_coinbase(since):
+    """Dzienne zamknięcia Coinbase (USD): z nich premia Coinbase względem ceny z Bitstamp (popyt z USA)."""
+    end = _today() + pd.Timedelta(days=1)
+    start = pd.Timestamp("2015-07-20") if since is None else pd.Timestamp(since) - pd.Timedelta(days=5)
+    d = {}
+    while start < end:
+        stop = min(start + pd.Timedelta(days=290), end)
+        arr = _get(f"https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=86400&start={start:%Y-%m-%dT00:00:00Z}&end={stop:%Y-%m-%dT00:00:00Z}").json()
+        for t, lo, hi, op, cl, vol in arr:
+            d[_day(t)] = float(cl)
+        start = stop
+        time.sleep(0.4)
+    return {"cbclose": _ser(d)}
+
+
+def fetch_bybit(since):
+    """Historia stawek za lewar na kontraktach wieczystych Bybit (od 2020), średnia dzienna."""
+    end = int(time.time() * 1000)
+    stop_at = int(pd.Timestamp("2020-03-26" if since is None else since).timestamp() * 1000)
+    rows = []
+    for _ in range(80):
+        j = _get(f"https://api.bybit.com/v5/market/funding/history?category=linear&symbol=BTCUSDT&limit=200&endTime={end}").json()
+        lst = j.get("result", {}).get("list", [])
+        if not lst:
+            break
+        rows += [(int(x["fundingRateTimestamp"]), float(x["fundingRate"])) for x in lst]
+        end = min(int(x["fundingRateTimestamp"]) for x in lst) - 1
+        if end < stop_at:
+            break
+        time.sleep(0.2)
+    if not rows:
+        raise RuntimeError("Bybit: brak danych")
+    s = pd.Series({pd.Timestamp(t, unit="ms"): v for t, v in rows}).sort_index()
+    return {"bfund": s.groupby(s.index.normalize()).mean()}
+
+
 JOBS = [("Bitstamp (cena)", fetch_price), ("CoinMetrics (MVRV, adresy)", fetch_coinmetrics),
         ("Blockchain.com (hash rate, przychody)", fetch_blockchain), ("Fear & Greed", fetch_fng),
         ("Yahoo (makro, złoto)", fetch_yahoo), ("DefiLlama (stablecoiny)", fetch_stable),
         ("OKX (funding, OI)", fetch_okx), ("CoinGecko (dominacja)", fetch_global),
         ("Wikipedia (uwaga wg języków)", fetch_wiki), ("Upbit (premia kimchi)", fetch_kimchi),
         ("Deribit (DVOL, put/call)", fetch_deribit), ("CFTC (pozycje CME)", fetch_cftc),
+        ("Coinbase (premia USA)", fetch_coinbase), ("Bybit (stawki za lewar)", fetch_bybit),
         ("FRED (M2, opcjonalnie)", fetch_m2)]
 
 

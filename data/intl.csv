@@ -1,0 +1,799 @@
+Symbol,Name,Index,Country
+ADS.DE,Adidas,DAX,Niemcy
+AIR.PA,Airbus,DAX,Niemcy
+ALV.DE,Allianz,DAX,Niemcy
+BAS.DE,BASF,DAX,Niemcy
+BAYN.DE,Bayer,DAX,Niemcy
+BEI.DE,Beiersdorf,DAX,Niemcy
+BMW.DE,BMW,DAX,Niemcy
+BNR.DE,Brenntag,DAX,Niemcy
+CBK.DE,Commerzbank,DAX,Niemcy
+CON.DE,Continental,DAX,Niemcy
+DTG.DE,Daimler Truck,DAX,Niemcy
+DBK.DE,Deutsche Bank,DAX,Niemcy
+DB1.DE,Deutsche Börse,DAX,Niemcy
+DHL.DE,Deutsche Post,DAX,Niemcy
+DTE.DE,Deutsche Telekom,DAX,Niemcy
+EOAN.DE,E.ON,DAX,Niemcy
+FRE.DE,Fresenius,DAX,Niemcy
+FME.DE,Fresenius Medical Care,DAX,Niemcy
+G1A.DE,GEA Group,DAX,Niemcy
+HNR1.DE,Hannover Re,DAX,Niemcy
+HEI.DE,Heidelberg Materials,DAX,Niemcy
+HEN3.DE,Henkel,DAX,Niemcy
+IFX.DE,Infineon Technologies,DAX,Niemcy
+MBG.DE,Mercedes-Benz Group,DAX,Niemcy
+MRK.DE,Merck,DAX,Niemcy
+MTX.DE,MTU Aero Engines,DAX,Niemcy
+MUV2.DE,Munich Re,DAX,Niemcy
+PAH3.DE,Porsche SE,DAX,Niemcy
+QIA.DE,Qiagen,DAX,Niemcy
+RHM.DE,Rheinmetall,DAX,Niemcy
+RWE.DE,RWE,DAX,Niemcy
+SAP.DE,SAP,DAX,Niemcy
+G24.DE,Scout24,DAX,Niemcy
+SIE.DE,Siemens,DAX,Niemcy
+ENR.DE,Siemens Energy,DAX,Niemcy
+SHL.DE,Siemens Healthineers,DAX,Niemcy
+SY1.DE,Symrise,DAX,Niemcy
+VOW3.DE,Volkswagen Group,DAX,Niemcy
+VNA.DE,Vonovia,DAX,Niemcy
+ZAL.DE,Zalando,DAX,Niemcy
+ADYEN.AS,Adyen,Euro Stoxx 50,Strefa euro
+AD.AS,Ahold Delhaize,Euro Stoxx 50,Strefa euro
+AI.PA,Air Liquide,Euro Stoxx 50,Strefa euro
+ABI.BR,Anheuser-Busch InBev,Euro Stoxx 50,Strefa euro
+ARGX.BR,Argenx,Euro Stoxx 50,Strefa euro
+ASML.AS,ASML Holding,Euro Stoxx 50,Strefa euro
+CS.PA,Axa,Euro Stoxx 50,Strefa euro
+BBVA.MC,BBVA,Euro Stoxx 50,Strefa euro
+SAN.MC,Banco Santander,Euro Stoxx 50,Strefa euro
+BNP.PA,BNP Paribas,Euro Stoxx 50,Strefa euro
+BN.PA,Danone,Euro Stoxx 50,Strefa euro
+ENEL.MI,Enel,Euro Stoxx 50,Strefa euro
+ENGI.PA,Engie,Euro Stoxx 50,Strefa euro
+ENI.MI,Eni,Euro Stoxx 50,Strefa euro
+EL.PA,EssilorLuxottica,Euro Stoxx 50,Strefa euro
+RACE.MI,Ferrari,Euro Stoxx 50,Strefa euro
+RMS.PA,Hermès,Euro Stoxx 50,Strefa euro
+IBE.MC,Iberdrola,Euro Stoxx 50,Strefa euro
+ITX.MC,Inditex,Euro Stoxx 50,Strefa euro
+INGA.AS,ING Group,Euro Stoxx 50,Strefa euro
+ISP.MI,Intesa Sanpaolo,Euro Stoxx 50,Strefa euro
+OR.PA,L'Oréal,Euro Stoxx 50,Strefa euro
+MC.PA,LVMH Moët Hennessy Louis Vuitton,Euro Stoxx 50,Strefa euro
+NOKIA.HE,Nokia,Euro Stoxx 50,Strefa euro
+NDA-FI.HE,Nordea,Euro Stoxx 50,Strefa euro
+PRX.AS,Prosus,Euro Stoxx 50,Strefa euro
+SAF.PA,Safran,Euro Stoxx 50,Strefa euro
+SGO.PA,Saint-Gobain,Euro Stoxx 50,Strefa euro
+SAN.PA,Sanofi,Euro Stoxx 50,Strefa euro
+SU.PA,Schneider Electric,Euro Stoxx 50,Strefa euro
+TTE.PA,TotalEnergies,Euro Stoxx 50,Strefa euro
+DG.PA,Vinci SA,Euro Stoxx 50,Strefa euro
+UCG.MI,UniCredit,Euro Stoxx 50,Strefa euro
+AC.PA,Accor,CAC 40,Francja
+MT.AS,ArcelorMittal,CAC 40,Francja
+EN.PA,Bouygues,CAC 40,Francja
+BVI.PA,Bureau Veritas,CAC 40,Francja
+CAP.PA,Capgemini,CAC 40,Francja
+CA.PA,Carrefour,CAC 40,Francja
+ACA.PA,Crédit Agricole,CAC 40,Francja
+DSY.PA,Dassault Systèmes,CAC 40,Francja
+FGR.PA,Eiffage,CAC 40,Francja
+ERF.PA,Eurofins Scientific,CAC 40,Francja
+ENX.PA,Euronext,CAC 40,Francja
+KER.PA,Kering,CAC 40,Francja
+LR.PA,Legrand,CAC 40,Francja
+ML.PA,Michelin,CAC 40,Francja
+ORA.PA,Orange,CAC 40,Francja
+RI.PA,Pernod Ricard,CAC 40,Francja
+PUB.PA,Publicis,CAC 40,Francja
+RNO.PA,Renault,CAC 40,Francja
+GLE.PA,Société Générale,CAC 40,Francja
+STLAP.PA,Stellantis,CAC 40,Francja
+STMPA.PA,STMicroelectronics,CAC 40,Francja
+HO.PA,Thales,CAC 40,Francja
+URW.PA,Unibail-Rodamco-Westfield,CAC 40,Francja
+VIE.PA,Veolia,CAC 40,Francja
+ABN.AS,ABN AMRO,AEX,Holandia
+AGN.AS,Aegon,AEX,Holandia
+AKZA.AS,AkzoNobel,AEX,Holandia
+ASM.AS,ASM International,AEX,Holandia
+ASRNL.AS,ASR Nederland,AEX,Holandia
+BESI.AS,BE Semiconductors,AEX,Holandia
+DSFIR.AS,DSM Firmenich AG,AEX,Holandia
+EXO.AS,Exor,AEX,Holandia
+HEIA.AS,Heineken,AEX,Holandia
+IMCD.AS,IMCD,AEX,Holandia
+KPN.AS,KPN,AEX,Holandia
+NN.AS,NN Group,AEX,Holandia
+PHIA.AS,Philips,AEX,Holandia
+RAND.AS,Randstad,AEX,Holandia
+REN.AS,RELX,AEX,Holandia
+SHELL.AS,Shell plc,AEX,Holandia
+UMG.AS,Universal Music Group,AEX,Holandia
+UNA.AS,Unilever,AEX,Holandia
+WKL.AS,Wolters Kluwer,AEX,Holandia
+ACS.MC,ACS,IBEX 35,Hiszpania
+ACX.MC,Acerinox,IBEX 35,Hiszpania
+AMS.MC,Amadeus IT Group,IBEX 35,Hiszpania
+ANA.MC,Acciona,IBEX 35,Hiszpania
+ANE.MC,Acciona Energía,IBEX 35,Hiszpania
+BKT.MC,Bankinter,IBEX 35,Hiszpania
+CABK.MC,CaixaBank,IBEX 35,Hiszpania
+CLNX.MC,Cellnex Telecom,IBEX 35,Hiszpania
+COL.MC,Inmobiliaria Colonial,IBEX 35,Hiszpania
+AENA.MC,AENA,IBEX 35,Hiszpania
+ELE.MC,Endesa,IBEX 35,Hiszpania
+ENG.MC,Enagás,IBEX 35,Hiszpania
+FDR.MC,Fluidra,IBEX 35,Hiszpania
+FER.MC,Ferrovial,IBEX 35,Hiszpania
+GRF.MC,Grifols,IBEX 35,Hiszpania
+IAG.MC,International Airlines Group,IBEX 35,Hiszpania
+IDR.MC,Indra,IBEX 35,Hiszpania
+LOG.MC,Logista,IBEX 35,Hiszpania
+MAP.MC,Mapfre,IBEX 35,Hiszpania
+MRL.MC,Merlin Properties,IBEX 35,Hiszpania
+MTS.MC,ArcelorMittal,IBEX 35,Hiszpania
+NTGY.MC,Naturgy,IBEX 35,Hiszpania
+PUIG.MC,Puig,IBEX 35,Hiszpania
+RED.MC,Redeia Corporación,IBEX 35,Hiszpania
+REP.MC,Repsol,IBEX 35,Hiszpania
+ROVI.MC,Laboratorios Rovi [es],IBEX 35,Hiszpania
+SAB.MC,Banco Sabadell,IBEX 35,Hiszpania
+SCYR.MC,Sacyr,IBEX 35,Hiszpania
+SLR.MC,Solaria,IBEX 35,Hiszpania
+TEF.MC,Telefónica,IBEX 35,Hiszpania
+UNI.MC,Unicaja,IBEX 35,Hiszpania
+III.L,3i,FTSE 100,Wielka Brytania
+ABDN.L,Aberdeen Group,FTSE 100,Wielka Brytania
+ADM.L,Admiral Group,FTSE 100,Wielka Brytania
+AAF.L,Airtel Africa,FTSE 100,Wielka Brytania
+ALW.L,Alliance Witan,FTSE 100,Wielka Brytania
+AAL.L,Anglo American plc,FTSE 100,Wielka Brytania
+ANTO.L,Antofagasta plc,FTSE 100,Wielka Brytania
+ABF.L,Associated British Foods,FTSE 100,Wielka Brytania
+AZN.L,AstraZeneca,FTSE 100,Wielka Brytania
+AUTO.L,Autotrader Group,FTSE 100,Wielka Brytania
+AV.L,Aviva,FTSE 100,Wielka Brytania
+BAB.L,Babcock International,FTSE 100,Wielka Brytania
+BA.L,BAE Systems,FTSE 100,Wielka Brytania
+BBY.L,Balfour Beatty,FTSE 100,Wielka Brytania
+BARC.L,Barclays,FTSE 100,Wielka Brytania
+BTRW.L,Barratt Redrow,FTSE 100,Wielka Brytania
+BP.L,BP,FTSE 100,Wielka Brytania
+BATS.L,British American Tobacco,FTSE 100,Wielka Brytania
+BLND.L,British Land,FTSE 100,Wielka Brytania
+BT-A.L,BT Group,FTSE 100,Wielka Brytania
+BNZL.L,Bunzl,FTSE 100,Wielka Brytania
+BRBY.L,Burberry Group,FTSE 100,Wielka Brytania
+CNA.L,Centrica,FTSE 100,Wielka Brytania
+CCEP.L,Coca-Cola Europacific Partners,FTSE 100,Wielka Brytania
+CCH.L,Coca-Cola HBC,FTSE 100,Wielka Brytania
+CPG.L,Compass Group,FTSE 100,Wielka Brytania
+CCC.L,Computacenter,FTSE 100,Wielka Brytania
+CTEC.L,Convatec,FTSE 100,Wielka Brytania
+CRDA.L,Croda International,FTSE 100,Wielka Brytania
+DCC.L,DCC Energy,FTSE 100,Wielka Brytania
+DGE.L,Diageo,FTSE 100,Wielka Brytania
+DPLM.L,Diploma,FTSE 100,Wielka Brytania
+EZJ.L,EasyJet,FTSE 100,Wielka Brytania
+EDV.L,Endeavour Mining,FTSE 100,Wielka Brytania
+EXPN.L,Experian,FTSE 100,Wielka Brytania
+FCIT.L,F & C Investment Trust,FTSE 100,Wielka Brytania
+FRES.L,Fresnillo plc,FTSE 100,Wielka Brytania
+GAW.L,Games Workshop,FTSE 100,Wielka Brytania
+GLEN.L,Glencore,FTSE 100,Wielka Brytania
+GSK.L,GSK plc,FTSE 100,Wielka Brytania
+HLN.L,Haleon,FTSE 100,Wielka Brytania
+HLMA.L,Halma plc,FTSE 100,Wielka Brytania
+HSX.L,Hiscox,FTSE 100,Wielka Brytania
+HWDN.L,Howdens Joinery,FTSE 100,Wielka Brytania
+HSBA.L,HSBC,FTSE 100,Wielka Brytania
+ICG.L,ICG,FTSE 100,Wielka Brytania
+IGG.L,IG Group,FTSE 100,Wielka Brytania
+IHG.L,IHG Hotels & Resorts,FTSE 100,Wielka Brytania
+IMI.L,IMI,FTSE 100,Wielka Brytania
+IMB.L,Imperial Brands,FTSE 100,Wielka Brytania
+INF.L,Informa,FTSE 100,Wielka Brytania
+IAG.L,International Airlines Group,FTSE 100,Wielka Brytania
+ITRK.L,Intertek,FTSE 100,Wielka Brytania
+INVP.L,Investec,FTSE 100,Wielka Brytania
+ITH.L,Ithaca Energy,FTSE 100,Wielka Brytania
+JD.L,JD Sports,FTSE 100,Wielka Brytania
+BGEO.L,Lion Finance Group,FTSE 100,Wielka Brytania
+KGF.L,Kingfisher plc,FTSE 100,Wielka Brytania
+LAND.L,Land Securities,FTSE 100,Wielka Brytania
+LGEN.L,Legal & General,FTSE 100,Wielka Brytania
+LLOY.L,Lloyds Banking Group,FTSE 100,Wielka Brytania
+LMP.L,LondonMetric Property,FTSE 100,Wielka Brytania
+LSEG.L,London Stock Exchange Group,FTSE 100,Wielka Brytania
+MNG.L,M&G,FTSE 100,Wielka Brytania
+MKS.L,Marks & Spencer,FTSE 100,Wielka Brytania
+MRO.L,Melrose Industries,FTSE 100,Wielka Brytania
+MTLN.L,Metlen Energy & Metals,FTSE 100,Wielka Brytania
+NG.L,National Grid plc,FTSE 100,Wielka Brytania
+NWG.L,NatWest Group,FTSE 100,Wielka Brytania
+NXT.L,Next plc,FTSE 100,Wielka Brytania
+PSON.L,Pearson plc,FTSE 100,Wielka Brytania
+PSH.L,Pershing Square Holdings,FTSE 100,Wielka Brytania
+PCT.L,Polar Capital Technology Trust,FTSE 100,Wielka Brytania
+PRU.L,Prudential plc,FTSE 100,Wielka Brytania
+RKT.L,Reckitt,FTSE 100,Wielka Brytania
+REL.L,RELX,FTSE 100,Wielka Brytania
+RTO.L,Rentokil Initial,FTSE 100,Wielka Brytania
+RIO.L,Rio Tinto,FTSE 100,Wielka Brytania
+RR.L,Rolls-Royce Holdings,FTSE 100,Wielka Brytania
+SGE.L,Sage Group,FTSE 100,Wielka Brytania
+SBRY.L,Sainsbury's,FTSE 100,Wielka Brytania
+SMT.L,Scottish Mortgage Investment Trust,FTSE 100,Wielka Brytania
+SGRO.L,Segro,FTSE 100,Wielka Brytania
+SVT.L,Severn Trent,FTSE 100,Wielka Brytania
+SHEL.L,Shell plc,FTSE 100,Wielka Brytania
+SMIN.L,Smiths Group,FTSE 100,Wielka Brytania
+SN.L,Smith & Nephew,FTSE 100,Wielka Brytania
+SPX.L,Spirax Group,FTSE 100,Wielka Brytania
+SSE.L,SSE plc,FTSE 100,Wielka Brytania
+STAN.L,Standard Chartered,FTSE 100,Wielka Brytania
+SDLF.L,Standard Life,FTSE 100,Wielka Brytania
+STJ.L,St. James's Place,FTSE 100,Wielka Brytania
+TSCO.L,Tesco,FTSE 100,Wielka Brytania
+BBOX.L,Tritax Big Box REIT,FTSE 100,Wielka Brytania
+ULVR.L,Unilever,FTSE 100,Wielka Brytania
+UU.L,United Utilities,FTSE 100,Wielka Brytania
+VOD.L,Vodafone Group,FTSE 100,Wielka Brytania
+WEIR.L,Weir,FTSE 100,Wielka Brytania
+WTB.L,Whitbread,FTSE 100,Wielka Brytania
+WPP.L,WPP,FTSE 100,Wielka Brytania
+0005.HK,HSBC Holdings plc,Hang Seng,Hongkong
+0388.HK,HKEx Limited,Hang Seng,Hongkong
+0939.HK,China Construction Bank,Hang Seng,Hongkong
+1299.HK,AIA Group Limited,Hang Seng,Hongkong
+1398.HK,Industrial and Commercial Bank of China,Hang Seng,Hongkong
+2318.HK,Ping An Insurance,Hang Seng,Hongkong
+2388.HK,BOC Hong Kong (Holdings) Ltd,Hang Seng,Hongkong
+2628.HK,China Life,Hang Seng,Hongkong
+3968.HK,China Merchants Bank,Hang Seng,Hongkong
+3988.HK,Bank of China Ltd,Hang Seng,Hongkong
+0002.HK,CLP Holdings Limited,Hang Seng,Hongkong
+0003.HK,Hong Kong and China Gas Company Limited,Hang Seng,Hongkong
+0006.HK,Power Assets Holdings Limited,Hang Seng,Hongkong
+0836.HK,China Resources Power,Hang Seng,Hongkong
+1038.HK,Cheung Kong Infrastructure Holdings Limited,Hang Seng,Hongkong
+2688.HK,ENN Energy,Hang Seng,Hongkong
+0012.HK,Henderson Land Development Company Limited,Hang Seng,Hongkong
+0016.HK,Sun Hung Kai Properties Limited,Hang Seng,Hongkong
+0101.HK,Hang Lung Properties Limited,Hang Seng,Hongkong
+0688.HK,China Overseas Land & Investment Limited,Hang Seng,Hongkong
+0823.HK,Link REIT,Hang Seng,Hongkong
+0960.HK,Longfor Properties,Hang Seng,Hongkong
+1109.HK,China Resources Land Limited,Hang Seng,Hongkong
+1113.HK,CK Asset Holdings,Hang Seng,Hongkong
+1209.HK,China Resources Mixc Lifestyle,Hang Seng,Hongkong
+1997.HK,Wharf Real Estate Investment Company Limited,Hang Seng,Hongkong
+0001.HK,CK Hutchison Holdings Limited,Hang Seng,Hongkong
+0027.HK,Galaxy Entertainment Group Ltd.,Hang Seng,Hongkong
+0066.HK,MTR Corporation Ltd,Hang Seng,Hongkong
+0175.HK,Geely Auto,Hang Seng,Hongkong
+0241.HK,Alibaba Health,Hang Seng,Hongkong
+0267.HK,CITIC Limited,Hang Seng,Hongkong
+0285.HK,BYD Electronics,Hang Seng,Hongkong
+0288.HK,WH Group,Hang Seng,Hongkong
+0291.HK,China Resources Beer,Hang Seng,Hongkong
+0300.HK,Midea Group,Hang Seng,Hongkong
+0316.HK,Orient Overseas (International) Limited,Hang Seng,Hongkong
+0322.HK,Tingyi,Hang Seng,Hongkong
+0386.HK,Sinopec Corp,Hang Seng,Hongkong
+0669.HK,Techtronic Industries,Hang Seng,Hongkong
+0700.HK,Tencent Holdings Limited,Hang Seng,Hongkong
+0762.HK,China Unicom,Hang Seng,Hongkong
+0857.HK,PetroChina Company Limited,Hang Seng,Hongkong
+0868.HK,Xinyi Glass,Hang Seng,Hongkong
+0881.HK,Zhongsheng Group,Hang Seng,Hongkong
+0883.HK,CNOOC Limited,Hang Seng,Hongkong
+0941.HK,China Mobile Ltd,Hang Seng,Hongkong
+0968.HK,Xinyi Solar,Hang Seng,Hongkong
+0981.HK,Semiconductor Manufacturing International Corporation,Hang Seng,Hongkong
+0992.HK,Lenovo,Hang Seng,Hongkong
+1024.HK,Kuaishou,Hang Seng,Hongkong
+1044.HK,Hengan International Group Co. Ltd,Hang Seng,Hongkong
+1088.HK,China Shenhua Energy,Hang Seng,Hongkong
+1093.HK,CSPC Pharmaceutical Group,Hang Seng,Hongkong
+1099.HK,Sinopharm Group,Hang Seng,Hongkong
+1177.HK,Sino Biopharm,Hang Seng,Hongkong
+1211.HK,BYD Company,Hang Seng,Hongkong
+1378.HK,China Hongqiao Group,Hang Seng,Hongkong
+1810.HK,Xiaomi,Hang Seng,Hongkong
+1876.HK,Budweiser Brewing Company APAC,Hang Seng,Hongkong
+1928.HK,Sands China,Hang Seng,Hongkong
+1929.HK,Chow Tai Fook,Hang Seng,Hongkong
+2015.HK,Li Auto,Hang Seng,Hongkong
+2020.HK,Anta Sports,Hang Seng,Hongkong
+2057.HK,ZTO Express,Hang Seng,Hongkong
+2269.HK,WuXi Biologics,Hang Seng,Hongkong
+2313.HK,Shenzhou International,Hang Seng,Hongkong
+2319.HK,Mengniu Dairy,Hang Seng,Hongkong
+2331.HK,Li-Ning,Hang Seng,Hongkong
+2359.HK,WuXi AppTec,Hang Seng,Hongkong
+2382.HK,Sunny Optical,Hang Seng,Hongkong
+2618.HK,JD Logistics,Hang Seng,Hongkong
+2899.HK,Zijin Mining,Hang Seng,Hongkong
+3690.HK,Meituan,Hang Seng,Hongkong
+3692.HK,Hansoh Pharmaceutical Group,Hang Seng,Hongkong
+6618.HK,JD Health,Hang Seng,Hongkong
+6690.HK,Haier,Hang Seng,Hongkong
+6862.HK,Haidilao,Hang Seng,Hongkong
+9618.HK,JD.com,Hang Seng,Hongkong
+9633.HK,Nongfu Spring,Hang Seng,Hongkong
+9888.HK,Baidu,Hang Seng,Hongkong
+9961.HK,Trip.com Group,Hang Seng,Hongkong
+9988.HK,Alibaba Group,Hang Seng,Hongkong
+9992.HK,Pop Mart,Hang Seng,Hongkong
+9999.HK,NetEase,Hang Seng,Hongkong
+AEM.TO,Agnico Eagle Mines Limited,TSX 60,Kanada
+ATD.TO,Alimentation Couche-Tard Inc.,TSX 60,Kanada
+BMO.TO,Bank of Montreal,TSX 60,Kanada
+BNS.TO,Bank of Nova Scotia,TSX 60,Kanada
+ABX.TO,Barrick Mining Corporation,TSX 60,Kanada
+BCE.TO,BCE Inc.,TSX 60,Kanada
+BAM.TO,Brookfield Asset Management Ltd.,TSX 60,Kanada
+BN.TO,Brookfield Corporation,TSX 60,Kanada
+BIP-UN.TO,Brookfield Infrastructure Partners L.P.,TSX 60,Kanada
+CAE.TO,CAE Inc.,TSX 60,Kanada
+CCO.TO,Cameco Corporation,TSX 60,Kanada
+CM.TO,Canadian Imperial Bank of Commerce,TSX 60,Kanada
+CNR.TO,Canadian National Railway Company,TSX 60,Kanada
+CNQ.TO,Canadian Natural Resources Limited,TSX 60,Kanada
+CP.TO,Canadian Pacific Kansas City Limited,TSX 60,Kanada
+CTC-A.TO,Canadian Tire Corporation Limited,TSX 60,Kanada
+CCL-B.TO,CCL Industries Inc.,TSX 60,Kanada
+CLS.TO,Celestica Inc.,TSX 60,Kanada
+CVE.TO,Cenovus Energy Inc.,TSX 60,Kanada
+GIB-A.TO,CGI Inc.,TSX 60,Kanada
+CSU.TO,Constellation Software Inc.,TSX 60,Kanada
+DOL.TO,Dollarama Inc.,TSX 60,Kanada
+EMA.TO,Emera Incorporated,TSX 60,Kanada
+ENB.TO,Enbridge Inc.,TSX 60,Kanada
+FFH.TO,Fairfax Financial Holdings Limited,TSX 60,Kanada
+FM.TO,First Quantum Minerals Ltd.,TSX 60,Kanada
+FSV.TO,FirstService Corporation,TSX 60,Kanada
+FTS.TO,Fortis Inc.,TSX 60,Kanada
+FNV.TO,Franco-Nevada Corporation,TSX 60,Kanada
+WN.TO,George Weston Limited,TSX 60,Kanada
+GIL.TO,Gildan Activewear Inc.,TSX 60,Kanada
+H.TO,Hydro One Limited,TSX 60,Kanada
+IMO.TO,Imperial Oil Limited,TSX 60,Kanada
+IFC.TO,Intact Financial Corporation,TSX 60,Kanada
+K.TO,Kinross Gold Corporation,TSX 60,Kanada
+L.TO,Loblaw Companies Limited,TSX 60,Kanada
+MG.TO,Magna International Inc.,TSX 60,Kanada
+MFC.TO,Manulife Financial Corporation,TSX 60,Kanada
+MRU.TO,Metro Inc.,TSX 60,Kanada
+NTR.TO,Nutrien Ltd.,TSX 60,Kanada
+OTEX.TO,Open Text Corporation,TSX 60,Kanada
+PPL.TO,Pembina Pipeline Corporation,TSX 60,Kanada
+POW.TO,Power Corporation of Canada,TSX 60,Kanada
+QSR.TO,Restaurant Brands International Inc.,TSX 60,Kanada
+RCI-B.TO,Rogers Communications Inc.,TSX 60,Kanada
+RY.TO,Royal Bank of Canada,TSX 60,Kanada
+SAP.TO,Saputo Inc.,TSX 60,Kanada
+SHOP.TO,Shopify Inc.,TSX 60,Kanada
+SLF.TO,Sun Life Financial Inc.,TSX 60,Kanada
+SU.TO,Suncor Energy Inc.,TSX 60,Kanada
+TRP.TO,TC Energy Corporation,TSX 60,Kanada
+TECK-B.TO,Teck Resources Limited,TSX 60,Kanada
+T.TO,Telus Corporation,TSX 60,Kanada
+TRI.TO,Thomson Reuters Corporation,TSX 60,Kanada
+TD.TO,Toronto-Dominion Bank,TSX 60,Kanada
+TOU.TO,Tourmaline Oil Corp.,TSX 60,Kanada
+WCN.TO,Waste Connections Inc.,TSX 60,Kanada
+WPM.TO,Wheaton Precious Metals Corp.,TSX 60,Kanada
+WSP.TO,WSP Global Inc.,TSX 60,Kanada
+ADANIENT.NS,Adani Enterprises,Nifty 50,Indie
+ADANIPORTS.NS,Adani Ports & SEZ,Nifty 50,Indie
+APOLLOHOSP.NS,Apollo Hospitals,Nifty 50,Indie
+ASIANPAINT.NS,Asian Paints,Nifty 50,Indie
+AXISBANK.NS,Axis Bank,Nifty 50,Indie
+BAJAJ-AUTO.NS,Bajaj Auto,Nifty 50,Indie
+BAJFINANCE.NS,Bajaj Finance,Nifty 50,Indie
+BAJAJFINSV.NS,Bajaj Finserv,Nifty 50,Indie
+BEL.NS,Bharat Electronics,Nifty 50,Indie
+BHARTIARTL.NS,Bharti Airtel,Nifty 50,Indie
+BSE.NS,BSE,Nifty 50,Indie
+CIPLA.NS,Cipla,Nifty 50,Indie
+COALINDIA.NS,Coal India,Nifty 50,Indie
+DRREDDY.NS,Dr. Reddy's Laboratories,Nifty 50,Indie
+EICHERMOT.NS,Eicher Motors,Nifty 50,Indie
+ETERNAL.NS,Eternal,Nifty 50,Indie
+GRASIM.NS,Grasim Industries,Nifty 50,Indie
+HCLTECH.NS,HCLTech,Nifty 50,Indie
+HDFCBANK.NS,HDFC Bank,Nifty 50,Indie
+HDFCLIFE.NS,HDFC Life,Nifty 50,Indie
+HINDALCO.NS,Hindalco Industries,Nifty 50,Indie
+HINDUNILVR.NS,Hindustan Unilever,Nifty 50,Indie
+ICICIBANK.NS,ICICI Bank,Nifty 50,Indie
+INDIGO.NS,IndiGo,Nifty 50,Indie
+INFY.NS,Infosys,Nifty 50,Indie
+ITC.NS,ITC,Nifty 50,Indie
+JIOFIN.NS,Jio Financial Services,Nifty 50,Indie
+JSWSTEEL.NS,JSW Steel,Nifty 50,Indie
+KOTAKBANK.NS,Kotak Mahindra Bank,Nifty 50,Indie
+LT.NS,Larsen & Toubro,Nifty 50,Indie
+M&M.NS,Mahindra & Mahindra,Nifty 50,Indie
+MARUTI.NS,Maruti Suzuki,Nifty 50,Indie
+MAXHEALTH.NS,Max Healthcare,Nifty 50,Indie
+NESTLEIND.NS,Nestlé India,Nifty 50,Indie
+NTPC.NS,NTPC,Nifty 50,Indie
+ONGC.NS,Oil and Natural Gas Corporation,Nifty 50,Indie
+POWERGRID.NS,Power Grid,Nifty 50,Indie
+RELIANCE.NS,Reliance Industries,Nifty 50,Indie
+SBILIFE.NS,SBI Life Insurance Company,Nifty 50,Indie
+SHRIRAMFIN.NS,Shriram Finance,Nifty 50,Indie
+SBIN.NS,State Bank of India,Nifty 50,Indie
+SUNPHARMA.NS,Sun Pharma,Nifty 50,Indie
+TCS.NS,Tata Consultancy Services,Nifty 50,Indie
+TATACONSUM.NS,Tata Consumer Products,Nifty 50,Indie
+TMPV.NS,Tata Motors Passenger Vehicles,Nifty 50,Indie
+TATASTEEL.NS,Tata Steel,Nifty 50,Indie
+TECHM.NS,Tech Mahindra,Nifty 50,Indie
+TITAN.NS,Titan Company,Nifty 50,Indie
+TRENT.NS,Trent,Nifty 50,Indie
+ULTRACEMCO.NS,UltraTech Cement,Nifty 50,Indie
+ALL.AX,Aristocrat Leisure,ASX 50,Australia
+AMC.AX,Amcor,ASX 50,Australia
+ANZ.AX,ANZ Bank,ASX 50,Australia
+BHP.AX,BHP,ASX 50,Australia
+BXB.AX,Brambles,ASX 50,Australia
+CAR.AX,CAR Group,ASX 50,Australia
+CBA.AX,Commonwealth Bank,ASX 50,Australia
+COH.AX,Cochlear,ASX 50,Australia
+COL.AX,Coles Group,ASX 50,Australia
+CPU.AX,Computershare,ASX 50,Australia
+CSL.AX,CSL,ASX 50,Australia
+EVN.AX,Evolution Mining,ASX 50,Australia
+FMG.AX,Fortescue,ASX 50,Australia
+FPH.AX,Fisher & Paykel Healthcare,ASX 50,Australia
+GMG.AX,Goodman Group,ASX 50,Australia
+IAG.AX,Insurance Australia Group,ASX 50,Australia
+JBH.AX,JB Hi-Fi,ASX 50,Australia
+JHX.AX,James Hardie,ASX 50,Australia
+LYC.AX,Lynas,ASX 50,Australia
+MPL.AX,Medibank,ASX 50,Australia
+MQG.AX,Macquarie Group,ASX 50,Australia
+NAB.AX,National Australia Bank,ASX 50,Australia
+NEM.AX,Newmont,ASX 50,Australia
+NST.AX,Northern Star Resources,ASX 50,Australia
+NWS.AX,News Corp,ASX 50,Australia
+ORG.AX,Origin Energy,ASX 50,Australia
+PME.AX,Pro Medicus,ASX 50,Australia
+QAN.AX,Qantas,ASX 50,Australia
+QBE.AX,QBE Insurance,ASX 50,Australia
+REA.AX,REA Group,ASX 50,Australia
+RIO.AX,Rio Tinto,ASX 50,Australia
+RMD.AX,ResMed,ASX 50,Australia
+S32.AX,South32,ASX 50,Australia
+SCG.AX,Scentre Group,ASX 50,Australia
+SGH.AX,Seven Group Holdings,ASX 50,Australia
+SGP.AX,Stockland,ASX 50,Australia
+SIG.AX,Sigma Healthcare,ASX 50,Australia
+SOL.AX,Soul Patts,ASX 50,Australia
+STO.AX,Santos,ASX 50,Australia
+SUN.AX,Suncorp,ASX 50,Australia
+TCL.AX,Transurban,ASX 50,Australia
+TLS.AX,Telstra,ASX 50,Australia
+VAS.AX,Vanguard Australian Shares,ASX 50,Australia
+WBC.AX,Westpac,ASX 50,Australia
+WES.AX,Wesfarmers,ASX 50,Australia
+WDS.AX,Woodside Energy,ASX 50,Australia
+WOW.AX,Woolworths,ASX 50,Australia
+XRO.AX,Xero,ASX 50,Australia
+XYZ.AX,Block,ASX 50,Australia
+NOVN.SW,Novartis International AG,SMI,Szwajcaria
+ROP.SW,Roche Holding AG,SMI,Szwajcaria
+NESN.SW,Nestlé SA,SMI,Szwajcaria
+ABBN.SW,ABB Ltd,SMI,Szwajcaria
+UBSG.SW,UBS Group AG,SMI,Szwajcaria
+CFR.SW,Compagnie Financière Richemont SA,SMI,Szwajcaria
+ZURN.SW,Zurich Insurance Group AG,SMI,Szwajcaria
+HOLN.SW,Holcim Limited,SMI,Szwajcaria
+SREN.SW,Swiss Reinsurance Company Ltd,SMI,Szwajcaria
+LONN.SW,Lonza Group AG,SMI,Szwajcaria
+SDZ.SW,Sandoz,SMI,Szwajcaria
+GIVN.SW,Givaudan SA,SMI,Szwajcaria
+ALC.SW,Alcon Inc,SMI,Szwajcaria
+SIKA.SW,Sika AG,SMI,Szwajcaria
+AMRZ.SW,Amrize AG,SMI,Szwajcaria
+SLHN.SW,Swiss Life Holding AG,SMI,Szwajcaria
+GALD.SW,Galderma,SMI,Szwajcaria
+GEBN.SW,Geberit AG,SMI,Szwajcaria
+PGHN.SW,Partners Group Holding AG,SMI,Szwajcaria
+LOGN.SW,Logitech International SA,SMI,Szwajcaria
+090430.KS,Amorepacific,KOSPI 200,Korea Płd.
+002790.KS,Amorepacific Holdings,KOSPI 200,Korea Płd.
+278470.KS,APR,KOSPI 200,Korea Płd.
+002030.KS,Asia Holdings,KOSPI 200,Korea Płd.
+282330.KS,BGF Retail,KOSPI 200,Korea Płd.
+138930.KS,BNK Financial,KOSPI 200,Korea Płd.
+068270.KS,Celltrion,KOSPI 200,Korea Płd.
+030000.KS,Cheil Worldwide,KOSPI 200,Korea Płd.
+185750.KS,Chong Kun Dang,KOSPI 200,Korea Płd.
+001040.KS,CJ,KOSPI 200,Korea Płd.
+097950.KS,CJ CheilJedang,KOSPI 200,Korea Płd.
+000120.KS,CJ Logistics,KOSPI 200,Korea Płd.
+192820.KS,Cosmax,KOSPI 200,Korea Płd.
+005420.KS,Cosmo Chemical,KOSPI 200,Korea Płd.
+021240.KS,Coway,KOSPI 200,Korea Płd.
+112610.KS,CS Wind,KOSPI 200,Korea Płd.
+483650.KS,d'Alba Global,KOSPI 200,Korea Płd.
+001680.KS,Daesang,KOSPI 200,Korea Płd.
+047040.KS,Daewoo E&C,KOSPI 200,Korea Płd.
+003090.KS,Daewoong,KOSPI 200,Korea Płd.
+069620.KS,Daewoong Pharmaceutical,KOSPI 200,Korea Płd.
+000990.KS,DB HiTek,KOSPI 200,Korea Płd.
+005830.KS,DB Insurance,KOSPI 200,Korea Płd.
+000210.KS,DL,KOSPI 200,Korea Płd.
+375500.KS,DL E&C,KOSPI 200,Korea Płd.
+007340.KS,DN Automotive,KOSPI 200,Korea Płd.
+026960.KS,Dongsuh,KOSPI 200,Korea Płd.
+006040.KS,Dongwon Industries,KOSPI 200,Korea Płd.
+014820.KS,Dongwon Systems,KOSPI 200,Korea Płd.
+000150.KS,Doosan,KOSPI 200,Korea Płd.
+241560.KS,Doosan Bobcat,KOSPI 200,Korea Płd.
+034020.KS,Doosan Enerbility,KOSPI 200,Korea Płd.
+454910.KS,Doosan Robotics,KOSPI 200,Korea Płd.
+192080.KS,DoubleU Games,KOSPI 200,Korea Płd.
+450080.KS,Ecopro Materials,KOSPI 200,Korea Płd.
+139480.KS,Emart,KOSPI 200,Korea Płd.
+383220.KS,F&F,KOSPI 200,Korea Płd.
+093370.KS,Foosung,KOSPI 200,Korea Płd.
+006280.KS,Green Cross,KOSPI 200,Korea Płd.
+078930.KS,GS,KOSPI 200,Korea Płd.
+007070.KS,GS Retail,KOSPI 200,Korea Płd.
+086790.KS,Hana Financial,KOSPI 200,Korea Płd.
+009420.KS,Hanall Biopharma,KOSPI 200,Korea Płd.
+300720.KS,Hanil Cement,KOSPI 200,Korea Płd.
+180640.KS,Hanjin KAL,KOSPI 200,Korea Płd.
+161390.KS,Hankook,KOSPI 200,Korea Płd.
+000240.KS,Hankook & Company,KOSPI 200,Korea Płd.
+128940.KS,Hanmi Pharm,KOSPI 200,Korea Płd.
+008930.KS,Hanmi Science,KOSPI 200,Korea Płd.
+042700.KS,Hanmi Semiconductor,KOSPI 200,Korea Płd.
+018880.KS,Hanon Systems,KOSPI 200,Korea Płd.
+014680.KS,Hansol Chemical,KOSPI 200,Korea Płd.
+009240.KS,Hanssem,KOSPI 200,Korea Płd.
+000880.KS,Hanwha,KOSPI 200,Korea Płd.
+012450.KS,Hanwha Aerospace,KOSPI 200,Korea Płd.
+082740.KS,Hanwha Engine,KOSPI 200,Korea Płd.
+088350.KS,Hanwha Life,KOSPI 200,Korea Płd.
+042660.KS,Hanwha Ocean,KOSPI 200,Korea Płd.
+009830.KS,Hanwha Solutions,KOSPI 200,Korea Płd.
+272210.KS,Hanwha Systems,KOSPI 200,Korea Płd.
+267270.KS,HD Construction Equipment,KOSPI 200,Korea Płd.
+267250.KS,HD Hyundai,KOSPI 200,Korea Płd.
+267260.KS,HD Hyundai Electric,KOSPI 200,Korea Płd.
+329180.KS,HD Hyundai Heavy Industries,KOSPI 200,Korea Płd.
+071970.KS,HD Hyundai Marine Engine,KOSPI 200,Korea Płd.
+443060.KS,HD Hyundai Marine Solution,KOSPI 200,Korea Płd.
+009540.KS,HD KSOE,KOSPI 200,Korea Płd.
+017960.KS,Hankuk Carbon,KOSPI 200,Korea Płd.
+000080.KS,HiteJinro,KOSPI 200,Korea Płd.
+204320.KS,HL Mando,KOSPI 200,Korea Płd.
+011200.KS,HMM,KOSPI 200,Korea Płd.
+008770.KS,Hotel Shilla,KOSPI 200,Korea Płd.
+298050.KS,HS Hyosung Advanced Materials,KOSPI 200,Korea Płd.
+352820.KS,Hybe,KOSPI 200,Korea Płd.
+298040.KS,Hyosung Heavy Industries,KOSPI 200,Korea Płd.
+298020.KS,Hyosung TNC,KOSPI 200,Korea Płd.
+307950.KS,Hyundai AutoEver,KOSPI 200,Korea Płd.
+069960.KS,Hyundai Department Store,KOSPI 200,Korea Płd.
+000720.KS,Hyundai E&C,KOSPI 200,Korea Płd.
+017800.KS,Hyundai Elevator,KOSPI 200,Korea Płd.
+086280.KS,Hyundai Glovis,KOSPI 200,Korea Płd.
+001450.KS,Hyundai Marine & Fire,KOSPI 200,Korea Płd.
+012330.KS,Hyundai Mobis,KOSPI 200,Korea Płd.
+005380.KS,Hyundai Motor,KOSPI 200,Korea Płd.
+064350.KS,Hyundai Rotem,KOSPI 200,Korea Płd.
+004020.KS,Hyundai Steel,KOSPI 200,Korea Płd.
+011210.KS,Hyundai WIA,KOSPI 200,Korea Płd.
+139130.KS,IM Financial,KOSPI 200,Korea Płd.
+024110.KS,Industrial Bank of Korea,KOSPI 200,Korea Płd.
+007660.KS,Isu Petasys,KOSPI 200,Korea Płd.
+457190.KS,Isu Specialty Chemical,KOSPI 200,Korea Płd.
+175330.KS,JB Financial,KOSPI 200,Korea Płd.
+035720.KS,Kakao,KOSPI 200,Korea Płd.
+323410.KS,KakaoBank,KOSPI 200,Korea Płd.
+377300.KS,KakaoPay,KOSPI 200,Korea Płd.
+035250.KS,Kangwon Land,KOSPI 200,Korea Płd.
+105560.KS,KB Financial,KOSPI 200,Korea Płd.
+002380.KS,KCC,KOSPI 200,Korea Płd.
+015760.KS,KEPCO,KOSPI 200,Korea Płd.
+052690.KS,KEPCO E&C,KOSPI 200,Korea Płd.
+051600.KS,KEPCO KPS,KOSPI 200,Korea Płd.
+000270.KS,Kia,KOSPI 200,Korea Płd.
+039490.KS,Kiwoom Securities,KOSPI 200,Korea Płd.
+161890.KS,Kolmar Korea,KOSPI 200,Korea Płd.
+120110.KS,Kolon Industries,KOSPI 200,Korea Płd.
+047810.KS,Korea Aerospace,KOSPI 200,Korea Płd.
+071320.KS,Korea District Heating,KOSPI 200,Korea Płd.
+036460.KS,Korea Gas,KOSPI 200,Korea Płd.
+071050.KS,Korea Investment,KOSPI 200,Korea Płd.
+006650.KS,Korea Petrochemical,KOSPI 200,Korea Płd.
+010130.KS,Korea Zinc,KOSPI 200,Korea Płd.
+003490.KS,Korean Air,KOSPI 200,Korea Płd.
+259960.KS,Krafton,KOSPI 200,Korea Płd.
+030200.KS,KT,KOSPI 200,Korea Płd.
+033780.KS,KT&G,KOSPI 200,Korea Płd.
+011780.KS,Kumho Petrochemical,KOSPI 200,Korea Płd.
+073240.KS,Kumho Tire,KOSPI 200,Korea Płd.
+066970.KS,L&F,KOSPI 200,Korea Płd.
+003550.KS,LG,KOSPI 200,Korea Płd.
+051910.KS,LG Chem,KOSPI 200,Korea Płd.
+064400.KS,LG CNS,KOSPI 200,Korea Płd.
+034220.KS,LG Display,KOSPI 200,Korea Płd.
+066570.KS,LG Electronics,KOSPI 200,Korea Płd.
+373220.KS,LG Energy Solution,KOSPI 200,Korea Płd.
+051900.KS,LG H&H,KOSPI 200,Korea Płd.
+011070.KS,LG Innotek,KOSPI 200,Korea Płd.
+032640.KS,LG Uplus,KOSPI 200,Korea Płd.
+079550.KS,LIG Nex1,KOSPI 200,Korea Płd.
+004990.KS,Lotte,KOSPI 200,Korea Płd.
+011170.KS,Lotte Chemical,KOSPI 200,Korea Płd.
+005300.KS,Lotte Chilsung,KOSPI 200,Korea Płd.
+004000.KS,Lotte Fine Chemical,KOSPI 200,Korea Płd.
+023530.KS,Lotte Shopping,KOSPI 200,Korea Płd.
+280360.KS,Lotte Wellfood,KOSPI 200,Korea Płd.
+006260.KS,LS,KOSPI 200,Korea Płd.
+010120.KS,LS Electric,KOSPI 200,Korea Płd.
+138040.KS,Meritz Financial,KOSPI 200,Korea Płd.
+006800.KS,Mirae Asset Securities,KOSPI 200,Korea Płd.
+081660.KS,Misto,KOSPI 200,Korea Płd.
+002840.KS,Miwon Commercial,KOSPI 200,Korea Płd.
+268280.KS,Miwon Specialty Chemical,KOSPI 200,Korea Płd.
+035420.KS,Naver,KOSPI 200,Korea Płd.
+036570.KS,NC,KOSPI 200,Korea Płd.
+251270.KS,Netmarble,KOSPI 200,Korea Płd.
+005940.KS,NH Investment & Securities,KOSPI 200,Korea Płd.
+004370.KS,Nongshim,KOSPI 200,Korea Płd.
+456040.KS,OCI,KOSPI 200,Korea Płd.
+010060.KS,OCI Holdings,KOSPI 200,Korea Płd.
+271560.KS,Orion,KOSPI 200,Korea Płd.
+001800.KS,Orion Holdings,KOSPI 200,Korea Płd.
+007310.KS,Ottogi,KOSPI 200,Korea Płd.
+028670.KS,Pan Ocean,KOSPI 200,Korea Płd.
+034230.KS,Paradise,KOSPI 200,Korea Płd.
+103140.KS,Poongsan,KOSPI 200,Korea Płd.
+005490.KS,POSCO,KOSPI 200,Korea Płd.
+022100.KS,POSCO DX,KOSPI 200,Korea Płd.
+003670.KS,POSCO Future M,KOSPI 200,Korea Płd.
+047050.KS,POSCO International,KOSPI 200,Korea Płd.
+012750.KS,S-1,KOSPI 200,Korea Płd.
+062040.KS,Sanil Electric,KOSPI 200,Korea Płd.
+207940.KS,Samsung Biologics,KOSPI 200,Korea Płd.
+028260.KS,Samsung C&T,KOSPI 200,Korea Płd.
+029780.KS,Samsung Card,KOSPI 200,Korea Płd.
+028050.KS,Samsung E&A,KOSPI 200,Korea Płd.
+009150.KS,Samsung Electro-Mechanics,KOSPI 200,Korea Płd.
+005930.KS,Samsung Electronics,KOSPI 200,Korea Płd.
+0126Z0.KS,Samsung Epis,KOSPI 200,Korea Płd.
+000810.KS,Samsung Fire & Marine,KOSPI 200,Korea Płd.
+010140.KS,Samsung Heavy Industries,KOSPI 200,Korea Płd.
+032830.KS,Samsung Life,KOSPI 200,Korea Płd.
+006400.KS,Samsung SDI,KOSPI 200,Korea Płd.
+018260.KS,Samsung SDS,KOSPI 200,Korea Płd.
+016360.KS,Samsung Securities,KOSPI 200,Korea Płd.
+003230.KS,Samyang Foods,KOSPI 200,Korea Płd.
+137310.KS,SD Biosensor,KOSPI 200,Korea Płd.
+001430.KS,Seah Besteel,KOSPI 200,Korea Płd.
+003030.KS,Seah Steel Holdings,KOSPI 200,Korea Płd.
+055550.KS,Shinhan Financial,KOSPI 200,Korea Płd.
+004170.KS,Shinsegae,KOSPI 200,Korea Płd.
+034730.KS,SK,KOSPI 200,Korea Płd.
+326030.KS,SK Biopharm,KOSPI 200,Korea Płd.
+302440.KS,SK Bioscience,KOSPI 200,Korea Płd.
+285130.KS,SK Chemicals,KOSPI 200,Korea Płd.
+000660.KS,SK Hynix,KOSPI 200,Korea Płd.
+361610.KS,SK IE Technology,KOSPI 200,Korea Płd.
+096770.KS,SK Innovation,KOSPI 200,Korea Płd.
+402340.KS,SK Square,KOSPI 200,Korea Płd.
+017670.KS,SK Telecom,KOSPI 200,Korea Płd.
+011790.KS,SKC,KOSPI 200,Korea Płd.
+005850.KS,SL,KOSPI 200,Korea Płd.
+010950.KS,S-Oil,KOSPI 200,Korea Płd.
+003240.KS,Taekwang Industrial,KOSPI 200,Korea Płd.
+001440.KS,Taihan Cable & Solution,KOSPI 200,Korea Płd.
+069260.KS,TKG Huchems,KOSPI 200,Korea Płd.
+316140.KS,Woori Financial,KOSPI 200,Korea Płd.
+008730.KS,Youlchon Chemical,KOSPI 200,Korea Płd.
+000670.KS,Young Poong,KOSPI 200,Korea Płd.
+111770.KS,Youngone,KOSPI 200,Korea Płd.
+009970.KS,Youngone Holdings,KOSPI 200,Korea Płd.
+000100.KS,Yuhan,KOSPI 200,Korea Płd.
+ALPA4.SA,Alpargatas,Bovespa,Brazylia
+ABEV3.SA,Ambev,Bovespa,Brazylia
+AMER3.SA,Americanas,Bovespa,Brazylia
+AZUL4.SA,Azul,Bovespa,Brazylia
+B3SA3.SA,B3,Bovespa,Brazylia
+BBAS3.SA,Banco do Brasil,Bovespa,Brazylia
+BBSE3.SA,BB Seguridade [pt],Bovespa,Brazylia
+BBDC3.SA,Bradesco,Bovespa,Brazylia
+BBDC4.SA,Bradesco,Bovespa,Brazylia
+BIDI11.SA,Banco Inter [pt],Bovespa,Brazylia
+BPAN4.SA,Banco Pan,Bovespa,Brazylia
+BRAP4.SA,Bradespar,Bovespa,Brazylia
+BRML3.SA,BRMalls,Bovespa,Brazylia
+BRKM5.SA,Braskem,Bovespa,Brazylia
+BRFS3.SA,BRF,Bovespa,Brazylia
+BPAC11.SA,BTG Pactual,Bovespa,Brazylia
+CRFB3.SA,Carrefour Brasil,Bovespa,Brazylia
+CCRO3.SA,CCR,Bovespa,Brazylia
+CVCB3.SA,CVC Brasil,Bovespa,Brazylia
+CMIG4.SA,CEMIG,Bovespa,Brazylia
+CIEL3.SA,Cielo,Bovespa,Brazylia
+COGN3.SA,Cogna,Bovespa,Brazylia
+CPLE6.SA,Copel,Bovespa,Brazylia
+CSAN3.SA,Cosan,Bovespa,Brazylia
+CPFE3.SA,CPFL Energia,Bovespa,Brazylia
+CSNA3.SA,CSN,Bovespa,Brazylia
+CYRE3.SA,Cyrela Brazil Realty,Bovespa,Brazylia
+DXCO3.SA,Dexco,Bovespa,Brazylia
+ECOR3.SA,EcoRodovias,Bovespa,Brazylia
+ENBR3.SA,EDP - Energias do Brasil,Bovespa,Brazylia
+AXIA3.SA,Eletrobras,Bovespa,Brazylia
+AXIA7.SA,Eletrobras,Bovespa,Brazylia
+EMBJ3.SA,Embraer,Bovespa,Brazylia
+ENGI11.SA,Energisa [pt],Bovespa,Brazylia
+ENEV3.SA,Eneva,Bovespa,Brazylia
+EGIE3.SA,ENGIE Brasil,Bovespa,Brazylia
+EQTL3.SA,Equatorial Energia [pt],Bovespa,Brazylia
+EZTC3.SA,Eztec [pt],Bovespa,Brazylia
+GGBR4.SA,Gerdau,Bovespa,Brazylia
+GOLL4.SA,Gol,Bovespa,Brazylia
+PCAR3.SA,GPA,Bovespa,Brazylia
+SOMA3.SA,Grupo Soma,Bovespa,Brazylia
+FLRY3.SA,Grupo Fleury [pt],Bovespa,Brazylia
+HAPV3.SA,Grupo Hapvida [pt],Bovespa,Brazylia
+HYPE3.SA,Hypera Pharma,Bovespa,Brazylia
+IGTI11.SA,Iguatemi,Bovespa,Brazylia
+IRBR3.SA,IRB Brasil RE,Bovespa,Brazylia
+ITUB4.SA,Itaú Unibanco,Bovespa,Brazylia
+ITSA4.SA,Itaúsa,Bovespa,Brazylia
+JBSS3.SA,JBS,Bovespa,Brazylia
+JHSF3.SA,JHSF Participações,Bovespa,Brazylia
+KLBN11.SA,Klabin,Bovespa,Brazylia
+RENT3.SA,Localiza,Bovespa,Brazylia
+LWSA3.SA,LocaWeb [pt],Bovespa,Brazylia
+LREN3.SA,Lojas Renner,Bovespa,Brazylia
+MGLU3.SA,Magazine Luiza,Bovespa,Brazylia
+MRFG3.SA,Marfrig,Bovespa,Brazylia
+CASH3.SA,Méliuz [pt],Bovespa,Brazylia
+GOAU4.SA,Metalúrgica Gerdau,Bovespa,Brazylia
+BEEF3.SA,Minerva Foods,Bovespa,Brazylia
+MRVE3.SA,MRV,Bovespa,Brazylia
+MULT3.SA,Multiplan,Bovespa,Brazylia
+NTCO3.SA,Natura & Co,Bovespa,Brazylia
+PETR3.SA,Petrobras,Bovespa,Brazylia
+PETR4.SA,Petrobras,Bovespa,Brazylia
+VBBR3.SA,Petrobras Distribuidora,Bovespa,Brazylia
+PRIO3.SA,PetroRio [pt],Bovespa,Brazylia
+PETZ3.SA,Petz [pt],Bovespa,Brazylia
+QUAL3.SA,Qualicorp,Bovespa,Brazylia
+RADL3.SA,RaiaDrogasil,Bovespa,Brazylia
+RDOR3.SA,Rede D'Or São Luiz [pt],Bovespa,Brazylia
+RAIL3.SA,Rumo,Bovespa,Brazylia
+SBSP3.SA,Sabesp,Bovespa,Brazylia
+SANB11.SA,Santander Brasil,Bovespa,Brazylia
+ASAI3.SA,Sendas Distribuidora,Bovespa,Brazylia
+SULA11.SA,SulAmérica Seguros,Bovespa,Brazylia
+SUZB3.SA,Suzano Papel e Celulose,Bovespa,Brazylia
+TAEE11.SA,Taesa S.A.,Bovespa,Brazylia
+VIVT3.SA,Telefônica Brasil,Bovespa,Brazylia
+TIMS3.SA,TIM Brasil,Bovespa,Brazylia
+TOTS3.SA,TOTVS,Bovespa,Brazylia
+UGPA3.SA,Ultrapar,Bovespa,Brazylia
+LCAM3.SA,Unidas [pt],Bovespa,Brazylia
+USIM5.SA,Usiminas,Bovespa,Brazylia
+VALE3.SA,Vale,Bovespa,Brazylia
+VIIA3.SA,Via,Bovespa,Brazylia
+YDUQ3.SA,YDUQS,Bovespa,Brazylia
+WEGE3.SA,WEG,Bovespa,Brazylia

@@ -39,6 +39,29 @@ YAHOO = {
     "tip": ("TIP", "Obligacje indeksowane inflacją"), "lqd": ("LQD", "Obligacje korp. inwest."), "jnk": ("JNK", "Obligacje śmieciowe"),
     "tyx": ("^TYX", "Rentowność 30-latek"), "fvx": ("^FVX", "Rentowność 5-latek"), "vvix": ("^VVIX", "VVIX (zmienność zmienności)"),
     "skew": ("^SKEW", "CBOE SKEW"), "russell": ("^RUT", "Russell 2000"), "nvda": ("NVDA", "Nvidia"),
+    # indeksy giełd świata
+    "i_dji": ("^DJI", "Dow Jones"), "i_tsx": ("^GSPTSE", "TSX (Kanada)"), "i_mxx": ("^MXX", "IPC (Meksyk)"), "i_merv": ("^MERV", "Merval (Argentyna)"),
+    "i_stoxx": ("^STOXX50E", "Euro Stoxx 50"), "i_aex": ("^AEX", "AEX (Holandia)"), "i_ibex": ("^IBEX", "IBEX 35 (Hiszpania)"), "i_mib": ("FTSEMIB.MI", "FTSE MIB (Włochy)"),
+    "i_smi": ("^SSMI", "SMI (Szwajcaria)"), "i_omx": ("^OMX", "OMX (Szwecja)"), "i_bfx": ("^BFX", "BEL 20 (Belgia)"), "i_psi": ("PSI20.LS", "PSI (Portugalia)"),
+    "i_atx": ("^ATX", "ATX (Austria)"), "i_wig": ("WIG.WA", "WIG (Polska)"), "i_szse": ("399001.SZ", "Shenzhen (Chiny)"), "i_sti": ("^STI", "STI (Singapur)"),
+    "i_klse": ("^KLSE", "KLCI (Malezja)"), "i_jkse": ("^JKSE", "Jakarta (Indonezja)"), "i_bse": ("^BSESN", "Sensex (Indie)"), "i_nz": ("^NZ50", "NZX 50 (Nowa Zelandia)"),
+    "i_ta": ("^TA125.TA", "TA-125 (Izrael)"), "i_xu": ("XU100.IS", "BIST 100 (Turcja)"), "i_jse": ("^J203.JO", "JSE (RPA)"), "i_omxc": ("^OMXC25", "OMX C25 (Dania)"),
+    "i_omxh": ("^OMXH25", "OMX H25 (Finlandia)"),
+    # strach na różnych rynkach
+    "v_vix9d": ("^VIX9D", "Strach na giełdzie 9 dni (VIX9D)"), "v_vix3m": ("^VIX3M", "Strach na giełdzie 3 miesiące (VIX3M)"), "v_vxn": ("^VXN", "Strach na Nasdaq (VXN)"),
+    "v_ovx": ("^OVX", "Strach na rynku ropy (OVX)"), "v_gvz": ("^GVZ", "Strach na rynku złota (GVZ)"),
+    # stopy i surowce
+    "zq": ("ZQ=F", "Oczekiwania stóp Fed (kontrakty)"), "zt": ("ZT=F", "Obligacje 2-letnie (kontrakty)"), "palladium": ("PA=F", "Pallad"),
+    "aluminium": ("ALI=F", "Aluminium"), "lumber": ("LBR=F", "Drewno"), "cocoa": ("CC=F", "Kakao"), "cotton": ("CT=F", "Bawełna"), "ojuice": ("OJ=F", "Sok pomarańczowy"),
+    "cattle": ("LE=F", "Bydło"), "freight": ("BDRY", "Fracht morski (suchy)"),
+    # waluty rynków wschodzących
+    "krw": ("KRW=X", "USD/KRW (Korea)"), "twd": ("TWD=X", "USD/TWD (Tajwan)"), "thb": ("THB=X", "USD/THB (Tajlandia)"), "php": ("PHP=X", "USD/PHP (Filipiny)"),
+    "egp": ("EGP=X", "USD/EGP (Egipt)"), "pkr": ("PKR=X", "USD/PKR (Pakistan)"), "cop": ("COP=X", "USD/COP (Kolumbia)"), "clp": ("CLP=X", "USD/CLP (Chile)"),
+    "pen": ("PEN=X", "USD/PEN (Peru)"), "ils": ("ILS=X", "USD/ILS (Izrael)"), "hkd": ("HKD=X", "USD/HKD (Hongkong)"), "uah": ("UAH=X", "USD/UAH (Ukraina)"), "vnd": ("VND=X", "USD/VND (Wietnam)"),
+    # inne kryptowaluty i kontrakty CME
+    "btcf": ("BTC=F", "Kontrakty CME na Bitcoina"), "c_eth": ("ETH-USD", "Ethereum"), "c_sol": ("SOL-USD", "Solana"), "c_xrp": ("XRP-USD", "XRP"), "c_bnb": ("BNB-USD", "BNB"),
+    "c_doge": ("DOGE-USD", "Dogecoin"), "c_ada": ("ADA-USD", "Cardano"), "c_ltc": ("LTC-USD", "Litecoin"), "c_trx": ("TRX-USD", "Tron"), "c_avax": ("AVAX-USD", "Avalanche"),
+    "c_link": ("LINK-USD", "Chainlink"), "c_dot": ("DOT-USD", "Polkadot"), "c_xmr": ("XMR-USD", "Monero"), "c_bch": ("BCH-USD", "Bitcoin Cash"),
     # spółki powiązane z krypto
     "coin": ("COIN", "Coinbase"), "mstr": ("MSTR", "Strategy (MSTR)"), "mara": ("MARA", "Marathon (górnik)"), "riot": ("RIOT", "Riot (górnik)"),
 }
@@ -68,6 +91,18 @@ LABELS.update({f"wx_{k}_p": f"Opady: {v[2]}" for k, v in WEATHER.items()})
 LABELS.update({"sunspots": "Plamy słoneczne", "quakes": "Trzęsienia ziemi M6+ (liczba)", "moon_sin": "Faza księżyca (sin)", "moon_cos": "Faza księżyca (cos)",
                "season_sin": "Sezonowość roczna (sin)", "season_cos": "Sezonowość roczna (cos)"})
 LABELS.update({f"dow_{i}": f"Dzień tygodnia: {d}" for i, d in enumerate(["pon", "wt", "śr", "czw", "pt", "sob", "niedz"])})
+LABELS.update({"cal_monthend": "Kalendarz: koniec miesiąca", "cal_quarterend": "Kalendarz: koniec kwartału", "cal_lunarny": "Kalendarz: chiński Nowy Rok (±7 dni)",
+               "cal_taxday": "Kalendarz: amerykański dzień podatkowy", "cal_xmas": "Kalendarz: okres świąteczny"})
+DSER = {  # szeregi z tabeli dziennej BTC dorzucane do skanera: (etykieta, rodzaj)
+    "d_ntx": ("Sieć BTC: liczba transakcji", "attn"), "d_fees": ("Sieć BTC: opłaty transakcyjne (USD)", "attn"), "d_mempool": ("Sieć BTC: kolejka transakcji (mempool)", "attn"),
+    "d_txvol": ("Sieć BTC: wartość przesyłana w sieci", "attn"), "d_uaddr": ("Sieć BTC: unikalne adresy", "attn"), "d_difficulty": ("Sieć BTC: trudność kopania", "attn"),
+    "d_hash": ("Sieć BTC: moc obliczeniowa", "attn"), "d_minerrev": ("Sieć BTC: przychody górników", "attn"), "d_adr": ("Sieć BTC: aktywne adresy", "attn"),
+    "d_volume": ("Wolumen handlu BTC (Bitstamp)", "attn"), "d_cbprem": ("Premia Coinbase (popyt z USA)", "lvl"), "d_basis": ("Różnica ceny CME vs bieżąca", "lvl"),
+    "d_bfund": ("Stawka za lewar (Bybit, 7 dni)", "lvl"), "d_mvrv": ("Zysk posiadaczy (MVRV)", "lvl"), "d_fng": ("Strach i chciwość (krypto)", "lvl"),
+    "d_ethbtc": ("Ethereum względem Bitcoina", "ratio"), "d_altbtc": ("Koszyk altcoinów względem Bitcoina", "ratio"),
+}
+LABELS.update({k: v[0] for k, v in DSER.items()})
+STATIC = {"moon_sin", "moon_cos", "season_sin", "season_cos", "cal_monthend", "cal_quarterend", "cal_lunarny", "cal_taxday", "cal_xmas"} | {f"dow_{i}" for i in range(7)}
 WL = {"n_total": "wszystkie wydarzenia", "c_armed": "konflikty zbrojne i ataki", "c_biz": "biznes i gospodarka", "c_disaster": "klęski i wypadki",
       "c_intl": "stosunki międzynarodowe", "c_law": "prawo i przestępczość", "c_pol": "polityka i wybory", "c_health": "zdrowie i środowisko",
       "c_sci": "nauka i technologia", "k_war": "wojna", "k_terror": "terroryzm", "k_deaths": "ofiary śmiertelne", "k_economy": "gospodarka (inflacja, stopy)",
@@ -79,6 +114,11 @@ LABELS.update({f"we_{k}": f"Świat: {v}" for k, v in WL.items()})
 LABELS.update({f"m_{k}": f"{v} (fundusz)" for k, v in MK.ETF.items()})
 LABELS.update({f"mk_ratio_{k}": v[2] for k, v in MK.RATIOS.items()})
 LABELS.update({f"mk_{k}": v for k, v in MK.LEVELS.items()})
+try:
+    _it = pd.read_csv(MK.INTL_CSV)
+    LABELS.update({f"g_{a}": f"{b} ({c})" for a, b, c in zip(_it["Symbol"], _it["Name"], _it["Index"])})
+except Exception:
+    pass
 try:
     _sp = pd.read_csv(MK.SP500)
     LABELS.update({f"s_{a}": f"{b} (akcja)" for a, b in zip(_sp["Symbol"], _sp["Security"])})
@@ -202,6 +242,15 @@ def static_series(index):
     d["season_sin"], d["season_cos"] = np.sin(2 * np.pi * doy / 365.25), np.cos(2 * np.pi * doy / 365.25)
     for i in range(7):
         d[f"dow_{i}"] = (index.dayofweek == i).astype(float)
+    # kalendarz: koniec miesiąca/kwartału, chiński Nowy Rok, amerykański dzień podatkowy, okres świąteczny
+    me = index.to_series().dt.is_month_end
+    d["cal_monthend"] = (index.to_series().shift(-3).dt.month != index.month).astype(float).to_numpy()
+    d["cal_quarterend"] = ((index.month % 3 == 0) & (d["cal_monthend"] > 0)).astype(float)
+    lny = pd.to_datetime(["2012-01-23", "2013-02-10", "2014-01-31", "2015-02-19", "2016-02-08", "2017-01-28", "2018-02-16", "2019-02-05", "2020-01-25",
+                          "2021-02-12", "2022-02-01", "2023-01-22", "2024-02-10", "2025-01-29", "2026-02-17", "2027-02-06"])
+    d["cal_lunarny"] = np.array([float(any(-7 <= (t - x).days <= 7 for x in lny)) for t in index])
+    d["cal_taxday"] = ((index.month == 4) & (index.day >= 8) & (index.day <= 18)).astype(float)
+    d["cal_xmas"] = (((index.month == 12) & (index.day >= 20)) | ((index.month == 1) & (index.day <= 3))).astype(float)
     return d
 
 
@@ -217,7 +266,8 @@ def transforms(raw, index):
         px = MK.load()
         if px is not None:
             sp = set(pd.read_csv(MK.SP500)["Symbol"]) if MK.SP500.exists() else set()
-            ren = {c: (f"s_{c}" if c in sp else f"m_{c}") for c in px.columns}
+            etf = set(MK.ETF)
+            ren = {c: (f"m_{c}" if c in etf else f"s_{c}" if c in sp else f"g_{c}") for c in px.columns}
             raw = raw.join(px.rename(columns=ren), how="outer")
         if MK.FEAT.exists():
             mf = pd.read_csv(MK.FEAT, index_col=0, parse_dates=True)
@@ -227,6 +277,26 @@ def transforms(raw, index):
     raw = raw.reindex(index.union(raw.index)).sort_index()
     for c in raw.columns:
         s = raw[c]
+        kind = DSER.get(c, (None, None))[1]
+        if kind == "attn":
+            s = s.where(s > 0).ffill(limit=5).reindex(index)
+            ls = np.log(s)
+            F[f"{c}|a7"] = ls.rolling(7).mean() - ls.rolling(90, min_periods=60).mean()
+            F[f"{c}|a30"] = ls.rolling(30).mean() - ls.rolling(365, min_periods=200).mean()
+            continue
+        if kind == "lvl":
+            s = s.ffill(limit=5).reindex(index)
+            F[f"{c}|d7"] = s - s.shift(7)
+            F[f"{c}|dev"] = s - s.rolling(365, min_periods=120).mean()
+            continue
+        if kind == "ratio":
+            ls = np.log(s.where(s > 0).ffill(limit=5).reindex(index))
+            F[f"{c}|r7"], F[f"{c}|r30"] = ls.diff(7), ls.diff(30)
+            continue
+        if c.startswith("g_"):
+            s = s.where(s > 0).ffill(limit=5).reindex(index)
+            F[f"{c}|r30"] = np.log(s).diff(30)
+            continue
         if c.startswith(("y_", "m_", "mk_ratio_")):
             s = s.where(s > 0).ffill(limit=5).reindex(index)
             ls = np.log(s)

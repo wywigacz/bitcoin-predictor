@@ -103,7 +103,7 @@ def run_scan(df, T):
         y = (lr.shift(-h) - lr).to_numpy(float)
         for lag in LAGS:
             for col in T.columns:
-                if col.startswith("s_") and (lag != 0 or h != 30):      # ~500 spółek: tylko jeden wariant, żeby nie mnożyć testów
+                if col.startswith(("s_", "g_")) and (lag != 0 or h != 30):      # ~500 spółek: tylko jeden wariant, żeby nie mnożyć testów
                     continue
                 x = T[col].shift(lag).to_numpy(float)
                 r, m = _corr(x, y)

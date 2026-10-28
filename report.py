@@ -890,6 +890,7 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=No
             .replace("%%UPCOMING%%", upcoming_html(E))
             .replace("%%REGTILES%%", reg2_tiles)
             .replace("%%MARKETS%%", markets_html(MKT, df))
+            .replace("%%NSERIES%%", n(S["summary"]["n_series"], 0) if S else "kilkaset")
             .replace("%%REGULARITY%%", reg_tiles)
             .replace("%%REGVERDICT%%", reg_verdict)
             .replace("%%SCANHEAD%%", scan_head)
