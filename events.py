@@ -235,7 +235,7 @@ def category_table(ev):
     return pd.DataFrame(rows)
 
 
-def attribute_moves(df, ev, cat_tab, thr=2.5, limit=60):
+def attribute_moves(df, ev, cat_tab, thr=2.0, limit=60):
     c = df["close"]
     sig = _sigma(c)
     r = np.log(c).diff()

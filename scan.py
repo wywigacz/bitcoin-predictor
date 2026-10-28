@@ -49,9 +49,46 @@ def _bh(p, q=0.10):
 def label(col):
     base, _, tr = col.partition("|")
     nm = W.LABELS.get(base, base)
-    desc = {"r1": "zwrot 1d", "r7": "zwrot 7d", "r30": "zwrot 30d", "a7": "uwaga 7d vs 90d", "a30": "uwaga 30d vs rok",
-            "w7": "anomalia 7d", "w30": "anomalia 30d", "s": ""}.get(tr, tr)
+    if base.startswith("we_"):
+        desc = {"a7": "natężenie 7 dni vs 90 dni", "a30": "natężenie 30 dni vs rok"}.get(tr, tr)
+    else:
+        desc = {"r1": "zwrot 1d", "r7": "zwrot 7d", "r30": "zwrot 30d", "a7": "uwaga 7d vs 90d", "a30": "uwaga 30d vs rok",
+                "w7": "anomalia 7d", "w30": "anomalia 30d", "s": ""}.get(tr, tr)
     return f"{nm} ({desc})" if desc else nm
+
+
+def world_analogs(df, top=8, gap=60):
+    """Okresy, w których świat (profil wydarzeń z ostatnich 30 dni) był najbardziej podobny do dzisiejszego, i co potem robił BTC.
+    Opis, nie prognoza: to kilka epizodów, a nie niezależne próby."""
+    import worldlog
+    try:
+        wl = pd.read_csv(worldlog.DAILY, index_col=0, parse_dates=True)
+    except Exception:
+        return None
+    cols = [c for c in wl.columns if c.startswith("k_") or c in ("c_armed", "c_biz", "c_pol", "c_disaster", "c_intl")]
+    x = np.log1p(wl[cols]).reindex(df.index)
+    x = x.rolling(30, min_periods=20).mean()
+    z = (x - x.expanding(365).mean()) / x.expanding(365).std()
+    z = z.dropna(how="any")
+    if len(z) < 800:
+        return None
+    cur = z.iloc[-1].to_numpy()
+    c = df["close"]
+    f30 = (c.shift(-30) / c - 1) * 100
+    f90 = (c.shift(-90) / c - 1) * 100
+    Z = z.to_numpy()
+    d = np.sqrt(((Z - cur) ** 2).mean(axis=1))
+    cand = [(d[i], z.index[i]) for i in range(len(z) - 120)]     # tylko dni z poznanym wynikiem 90 dni
+    cand.sort()
+    picked = []
+    for dist, day in cand:
+        if all(abs((day - p[1]).days) > gap for p in picked):
+            picked.append((dist, day))
+        if len(picked) == top:
+            break
+    rows = [{"date": day.strftime("%Y-%m-%d"), "dist": float(dist), "f30": float(f30.loc[day]), "f90": float(f90.loc[day])} for dist, day in picked]
+    return {"rows": rows, "med30": float(np.median([r["f30"] for r in rows])), "med90": float(np.median([r["f90"] for r in rows])),
+            "up30": float(np.mean([r["f30"] > 0 for r in rows])), "n_feat": len(cols), "asof": z.index[-1].strftime("%Y-%m-%d")}
 
 
 def run_scan(df, T):
@@ -100,4 +137,5 @@ def run_scan(df, T):
                "n_series": int(T.columns.map(lambda c: c.split("|")[0]).nunique())}
     disc = R[R["discovery"]].sort_values("p").head(15)
     cand = R[~R["discovery"]].sort_values(["score", "p"], ascending=[False, True]).head(12)
-    return {"summary": summary, "discoveries": disc, "candidates": cand, "comove_pos": co.tail(10).iloc[::-1], "comove_neg": co.head(8), "all": R}
+    return {"summary": summary, "discoveries": disc, "candidates": cand, "comove_pos": co.tail(10).iloc[::-1], "comove_neg": co.head(8), "all": R,
+            "analogs": world_analogs(df)}

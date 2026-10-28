@@ -260,18 +260,46 @@ def _catlab(c):
     return events_data.CATEGORIES.get(c, c)
 
 
+_WL_CAT = {"biz": "Gospodarka", "pol": "Polityka", "armed": "Konflikty", "intl": "Stosunki międzynarodowe", "disaster": "Klęski", "law": "Prawo i przestępczość",
+           "health": "Zdrowie", "sci": "Nauka i technologia"}
+
+
+def _move_row(m, cache):
+    import news
+    import worldlog
+    d = m["date"]
+    chips = "".join(f'<span class="cause {x["kind"]}" title="{html.escape(x["title"])} ({x["date"]})">{html.escape(_catlab(x["cat"]))}</span>' for x in m["causes"])
+    nd = news.for_day(cache, d)
+    wh = worldlog.day_headlines(d)
+    detail = ""
+    if nd and nd["cats"]:
+        chips += "".join(f'<span class="cause news" title="Tyle nagłówków o Bitcoinie z tego dnia dotyczyło tego tematu">{html.escape(_catlab(c["cat"]))} ×{c["n"]}</span>' for c in nd["cats"])
+    if nd and nd["g"]:
+        detail += '<div class="hl"><b>Nagłówki prasowe o Bitcoinie z tego dnia</b><ul>' + "".join(
+            f'<li>{html.escape(x["t"])} <span class="muted">({html.escape(x["d"])})</span></li>' for x in nd["g"][:5]) + "</ul></div>"
+    if wh:
+        detail += '<div class="hl"><b>Co działo się na świecie tego dnia</b><ul>' + "".join(
+            f'<li><span class="muted">{_WL_CAT.get(x["c"], x["c"])}:</span> {html.escape(x["t"])}</li>' for x in wh) + "</ul></div>"
+    cnt = (len(nd["g"][:5]) if nd and nd["g"] else 0) + len(wh)
+    cell = chips or '<span class="muted sm">brak wydarzeń z naszej listy</span>'
+    if detail:
+        cell += f'<details class="hl-d"><summary>Pokaż, co się działo ({cnt})</summary>{detail}</details>'
+    return f'<tr><td>{d}</td><td class="{"pos" if m["ret"] >= 0 else "neg"}"><b>{m["ret"]:+.1f}%</b></td><td>{cell}</td></tr>'
+
+
 def moves_html(E):
-    rows = ""
-    for m in E["moves"][:16]:
-        ch = "".join(f'<span class="cause {x["kind"]}" title="{html.escape(x["title"])} ({x["date"]})">{html.escape(_catlab(x["cat"]))}</span>' for x in m["causes"]) \
-            or '<span class="muted sm">nie znaleźliśmy pasującego wydarzenia</span>'
-        rows += f'<tr><td>{m["date"]}</td><td class="{"pos" if m["ret"] >= 0 else "neg"}"><b>{m["ret"]:+.1f}%</b></td><td>{ch}</td></tr>'
+    import news
+    cache = news.load()
+    head = '<table class="tbl"><tr><th>Data</th><th>Zmiana ceny</th><th>Co się działo (wydarzenia i nagłówki)</th></tr>'
+    first = "".join(_move_row(m, cache) for m in E["moves"][:10])
+    rest = "".join(_move_row(m, cache) for m in E["moves"][10:50])
     c = E["cover"]
-    note = (f'Przeanalizowaliśmy {c["n_moves"]} największych skoków ceny w historii. Przy {c["explained_curated"]*100:.0f}% z nich znaleźliśmy obok ważne wydarzenie z naszej listy, '
-            f'a przy {c["explained_any"]*100:.0f}% jakiekolwiek wydarzenie (także rutynowe). Ale nawet dla losowo wybranych dni jakieś wydarzenie znajduje się w {c["placebo_any"]*100:.0f}% przypadków. '
-            f'Czyli samo „coś się wtedy działo” nie dowodzi, że to było przyczyną.')
-    return (f'<table class="tbl"><tr><th>Data</th><th>Zmiana ceny</th><th>Co się działo w tym czasie (±1–2 dni)</th></tr>{rows}</table>'
-            f'<p class="muted sm" style="margin-top:10px">{note}</p>')
+    note = (f'Przeanalizowaliśmy {c["n_moves"]} dużych skoków ceny w historii. Przy każdym zapisujemy, co działo się wtedy na świecie: wydarzenia z naszej listy, '
+            f'nagłówki prasowe o Bitcoinie (z archiwum GDELT) i dziennik wydarzeń światowych z Wikipedii. Nie twierdzimy, że to jest przyczyna skoku. '
+            f'Chodzi o to, żeby mieć gęstą oś czasu świata i szukać na niej powtarzających się wzorców (patrz „Szukanie powiązań”). '
+            f'Dla porównania: nawet dla losowo wybranych dni jakieś wydarzenie z listy znajduje się w {c["placebo_any"]*100:.0f}% przypadków.')
+    more = f'<details class="more"><summary>Pokaż kolejne skoki</summary>{head}{rest}</table></details>' if rest else ""
+    return f'{head}{first}</table>{more}<p class="muted sm" style="margin-top:10px">{note}</p>'
 
 
 def study_html(E):
@@ -462,6 +490,18 @@ def regularity_html(Rg):
     return tl + ev + extra, verdict
 
 
+def analogs_html(A):
+    if not A or not A.get("rows"):
+        return ""
+    rows = "".join(f'<tr><td>{r["date"]}</td><td class="{"pos" if r["f30"] >= 0 else "neg"}">{r["f30"]:+.0f}%</td><td class="{"pos" if r["f90"] >= 0 else "neg"}">{r["f90"]:+.0f}%</td></tr>' for r in A["rows"])
+    return (f'<div class="panel" style="margin-bottom:18px"><h3 class="ct">Kiedy świat wyglądał podobnie do dzisiejszego?</h3>'
+            f'<p class="muted sm" style="margin:0 0 10px">Opisujemy świat profilem z ostatnich 30 dni: ile wpisów w dzienniku wydarzeń dotyczyło wojen, rynków, banków, sankcji, wyborów, klęsk, pandemii, kryptowalut i innych tematów ({A["n_feat"]} cech). '
+            f'Szukamy okresów z najbardziej podobnym profilem i patrzymy, co robił potem Bitcoin. To ciekawostka, a nie prognoza: to tylko kilka oddzielnych epizodów.</p>'
+            f'<table class="tbl"><tr><th>Okres (koniec 30-dniowego okna)</th><th>Cena po 30 dniach</th><th>Cena po 90 dniach</th></tr>{rows}</table>'
+            f'<p class="muted sm" style="margin:10px 0 0">W {A["up30"]*100:.0f}% tych okresów cena po 30 dniach była wyższa, typowa zmiana: {A["med30"]:+.0f}% po 30 dniach i {A["med90"]:+.0f}% po 90 dniach. '
+            f'Bitcoin rósł w ok. 60% okien 30-dniowych w całej historii, więc samo to jeszcze nic nie dowodzi.</p></div>')
+
+
 def scan_html(S):
     if S is None:
         return '<div class="card empty"><b>Brak danych ze świata</b></div>', ""
@@ -497,7 +537,8 @@ def scan_html(S):
             co += (f'<div class="sig sm-row"><div class="sig-l"><b>{html.escape(r.label)}</b></div><div class="dv"><i class="mid"></i>'
                    f'<span class="{"g" if r.r >= 0 else "r"}" style="left:{50 if r.r >= 0 else 50 - w:.1f}%;width:{w:.1f}%"></span></div>'
                    f'<div class="sig-v"><b>{r.r:+.2f}</b></div></div>')
-    return head, (f'<div class="two2"><div class="card"><h3 class="ct">Odkrycia, które przeszły wszystkie sita</h3>{d}'
+    an = analogs_html(S.get("analogs"))
+    return head, an + (f'<div class="two2"><div class="card"><h3 class="ct">Odkrycia, które przeszły wszystkie sita</h3>{d}'
                   f'<h3 class="ct" style="margin-top:18px">Najciekawsze podejrzenia (nie przeszły sit, ale obserwujemy)</h3>{c}'
                   f'<p class="muted sm" style="margin-top:8px">Siła powiązania to liczba od −1 do +1 (0 = brak związku). Te podejrzenia utrzymują się w czasie i działają też w nowszych danych, '
                   f'ale po uwzględnieniu liczby testów nie da się wykluczyć przypadku.</p></div>'
@@ -694,6 +735,21 @@ def _pl_decimals(page):
     return "".join(p if p.startswith("<") else re.sub(r"(?<=\d)\.(?=\d)", ",", p) for p in parts) + page[i:]
 
 
+def plan_data(df):
+    """Miesięczne ceny BTC w złotych (kurs USD/PLN z Yahoo) do symulatora wpłat."""
+    import world
+    try:
+        w = pd.read_csv(world.WORLD_CSV, index_col=0, parse_dates=True)["y_pln"]
+    except Exception:
+        return None
+    pln = w.reindex(df.index.union(w.index)).sort_index().ffill(limit=7).reindex(df.index)
+    px = (df["close"] * pln).dropna()
+    m = px.resample("MS").first().dropna()
+    if len(m) < 24:
+        return None
+    return {"m": [d.strftime("%Y-%m") for d in m.index], "p": [round(float(v), 2) for v in m.values]}
+
+
 def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None):
     fr = res["frame"]
     reg_tiles, reg_verdict = regularity_html(Rg)
@@ -716,6 +772,9 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None):
         "comp": ser_list(comp, 3), "halvings": [(pd.Timestamp(h) - ep).days for h in C.HALVINGS],
         "fc": [{"h": x["horizon"], **{k: x[k] for k in ("p5", "p10", "p25", "p50", "p75", "p90", "p95")}} for x in res["forecasts"]],
     }
+    pdata = plan_data(df)
+    if pdata:
+        data["plan"] = pdata
     data["view"] = [x["view"]["p50"] for x in res["forecasts"]]
     data["up"] = [round(x["prob_up"], 4) for x in res["forecasts"]]
     evd = E["events"]

@@ -24,7 +24,7 @@ YAHOO = {
     "ewj": ("EWJ", "Japonia (ETF)"), "fxi": ("FXI", "Chiny large cap (ETF)"), "inda": ("INDA", "Indie (ETF)"),
     # waluty
     "try": ("TRY=X", "USD/TRY (lira)"), "ars": ("ARS=X", "USD/ARS (peso arg.)"), "ngn": ("NGN=X", "USD/NGN (naira)"),
-    "brl": ("BRL=X", "USD/BRL"), "eur": ("EURUSD=X", "EUR/USD"), "gbp": ("GBPUSD=X", "GBP/USD"), "aud": ("AUDUSD=X", "AUD/USD"),
+    "pln": ("PLN=X", "USD/PLN (złoty)"), "brl": ("BRL=X", "USD/BRL"), "eur": ("EURUSD=X", "EUR/USD"), "gbp": ("GBPUSD=X", "GBP/USD"), "aud": ("AUDUSD=X", "AUD/USD"),
     "cad": ("CAD=X", "USD/CAD"), "chf": ("CHF=X", "USD/CHF"), "rub": ("RUB=X", "USD/RUB"), "inr": ("INR=X", "USD/INR"),
     "zar": ("ZAR=X", "USD/ZAR"), "mxn": ("MXN=X", "USD/MXN"), "cnh": ("CNY=X", "USD/CNY"), "idr": ("IDR=X", "USD/IDR"),
     # surowce i energia
@@ -67,7 +67,15 @@ LABELS.update({f"wx_{k}_p": f"Opady: {v[2]}" for k, v in WEATHER.items()})
 LABELS.update({"sunspots": "Plamy słoneczne", "quakes": "Trzęsienia ziemi M6+ (liczba)", "moon_sin": "Faza księżyca (sin)", "moon_cos": "Faza księżyca (cos)",
                "season_sin": "Sezonowość roczna (sin)", "season_cos": "Sezonowość roczna (cos)"})
 LABELS.update({f"dow_{i}": f"Dzień tygodnia: {d}" for i, d in enumerate(["pon", "wt", "śr", "czw", "pt", "sob", "niedz"])})
-ATTN = {f"wk_{k}" for k in WIKI} | {"quakes", "sunspots"}
+WL = {"n_total": "wszystkie wydarzenia", "c_armed": "konflikty zbrojne i ataki", "c_biz": "biznes i gospodarka", "c_disaster": "klęski i wypadki",
+      "c_intl": "stosunki międzynarodowe", "c_law": "prawo i przestępczość", "c_pol": "polityka i wybory", "c_health": "zdrowie i środowisko",
+      "c_sci": "nauka i technologia", "k_war": "wojna", "k_terror": "terroryzm", "k_deaths": "ofiary śmiertelne", "k_economy": "gospodarka (inflacja, stopy)",
+      "k_markets": "rynki i giełdy", "k_finstress": "stres finansowy (banki, długi)", "k_sanctions": "sankcje i cła", "k_elections": "wybory",
+      "k_power": "zmiany władzy", "k_naturaldis": "klęski żywiołowe", "k_pandemic": "pandemie i choroby", "k_protest": "protesty i strajki",
+      "k_energy": "energia i surowce", "k_tech": "technologie i big tech", "k_crypto": "kryptowaluty", "k_china": "Chiny", "k_ukraine": "Rosja i Ukraina",
+      "k_mideast": "Bliski Wschód", "k_usa": "USA", "k_europe": "Europa"}
+LABELS.update({f"we_{k}": f"Świat: {v}" for k, v in WL.items()})
+ATTN = {f"wk_{k}" for k in WIKI} | {"quakes", "sunspots"} | {f"we_{k}" for k in WL}
 WX = {f"wx_{k}_t" for k in WEATHER} | {f"wx_{k}_p" for k in WEATHER}
 STATIC = {"moon_sin", "moon_cos", "season_sin", "season_cos"} | {f"dow_{i}" for i in range(7)}
 
@@ -165,7 +173,8 @@ def fetch_world(since=None):
 
 def update_world(full=False):
     old = pd.read_csv(WORLD_CSV, index_col=0, parse_dates=True) if WORLD_CSV.exists() else pd.DataFrame()
-    since = None if (full or old.empty) else old.index.max() - pd.Timedelta(days=30)
+    missing = [f"y_{k}" for k in YAHOO if f"y_{k}" not in old.columns]       # nowy szereg: pobierz całą historię
+    since = None if (full or old.empty or missing) else old.index.max() - pd.Timedelta(days=30)
     data, fails = fetch_world(since)
     new = pd.DataFrame(data)
     merged = new.combine_first(old) if len(old) else new
@@ -190,6 +199,11 @@ def static_series(index):
 def transforms(raw, index):
     """Stacjonarne transformacje (zwroty, log-ilorazy uwagi, anomalie pogody) wyrównane do osi BTC. Bez podglądania przyszłości."""
     F = {}
+    try:                                                   # dziennik świata (Wikipedia) jako dodatkowe szeregi natężenia
+        wl = pd.read_csv(C.DATA_DIR / "worldlog_daily.csv", index_col=0, parse_dates=True)
+        raw = raw.join(wl[[c for c in WL if c in wl.columns]].rename(columns=lambda c: f"we_{c}"), how="outer")
+    except Exception:
+        pass
     raw = raw.reindex(index.union(raw.index)).sort_index()
     for c in raw.columns:
         s = raw[c]

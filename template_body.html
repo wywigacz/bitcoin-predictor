@@ -1,6 +1,6 @@
 <header class="bar"><div class="bar-in">
  <a class="brand" href="#top"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="var(--card2)" stroke="var(--line2)"/><path d="M7 21a9 9 0 1 1 18 0" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round"/><path d="M16 21l4.6-7" stroke="var(--green)" stroke-width="2.6" stroke-linecap="round"/><circle cx="16" cy="21" r="2.2" fill="var(--fg)"/></svg><span>Barometr Bitcoina</span></a>
- <nav class="nav" id="nav"><a href="#skrot">W skrócie</a><a href="#prognoza">Prognoza</a><a href="#dlaczego">Dlaczego</a><a href="#wskazniki">Wskaźniki</a><a href="#wydarzenia">Wydarzenia</a><a href="#swiat">Świat</a><a href="#metody">Metody</a><a href="#slowniczek">Słowniczek</a></nav>
+ <nav class="nav" id="nav"><a href="#skrot">W skrócie</a><a href="#prognoza">Prognoza</a><a href="#dlaczego">Dlaczego</a><a href="#wskazniki">Wskaźniki</a><a href="#wydarzenia">Wydarzenia</a><a href="#swiat">Świat</a><a href="#metody">Metody</a><a href="#symulator">Symulator</a><a href="#slowniczek">Słowniczek</a></nav>
  <span class="chip %%SRCCLS%%" title="Ile źródeł danych odpowiada"><i></i>%%SRCOK%%</span>
  <button class="tg" id="tg" aria-label="Zmień motyw jasny/ciemny" title="Jasny / ciemny"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg></button>
 </div></header>
@@ -67,7 +67,7 @@
 </section>
 
 <section class="s" id="wydarzenia">
- <header class="sh"><span class="eyebrow">Wydarzenia</span><h2>Co działo się na świecie, gdy cena skakała?</h2><p class="lede">Zebraliśmy %%NEVENTS%% wydarzeń: ważne decyzje (np. zakazy w Chinach, upadek giełdy FTX, zatwierdzenie funduszy ETF), terminy (posiedzenia amerykańskiego banku centralnego, wybory), włamania do giełd oraz nagłe załamania na rynkach świata wykrywane automatycznie. Sprawdzamy, jak zwykle reagował Bitcoin.</p></header>
+ <header class="sh"><span class="eyebrow">Wydarzenia</span><h2>Co działo się na świecie, gdy cena skakała?</h2><p class="lede">Zebraliśmy %%NEVENTS%% wydarzeń: ważne decyzje (np. zakazy w Chinach, upadek giełdy FTX, zatwierdzenie funduszy ETF), terminy (posiedzenia amerykańskiego banku centralnego, wybory), włamania do giełd oraz nagłe załamania na rynkach świata wykrywane automatycznie. Przy każdym dużym skoku ceny zapisujemy, co działo się wtedy na świecie (także nagłówki prasowe i dziennik wydarzeń światowych), żeby mieć gęstą oś czasu i szukać na niej powtarzających się wzorców.</p></header>
  <div class="two2"><div class="panel"><h3 class="ct">Największe skoki ceny i co się wtedy działo</h3>%%MOVES%%</div>
  <div class="panel"><h3 class="ct">Jak zwykle reaguje Bitcoin na różne rodzaje wydarzeń</h3>%%STUDY%%</div></div>
  <div class="panel" style="margin-top:18px"><h3 class="ct">Nadchodzące wydarzenia</h3>%%UPCOMING%%</div>
@@ -94,6 +94,38 @@
  %%TRACK%%
  <div class="two2" style="margin-top:28px"><div class="panel"><h3 class="ct">Z czym Bitcoin ostatnio się porusza (90 dni)</h3><p class="muted sm" style="margin:0 0 8px">Plus: rosną i spadają razem. Minus: w przeciwne strony. Zero: niezależnie.</p>%%CORR%%</div>
  <div class="panel"><h3 class="ct">Źródła danych</h3><div class="pills">%%PILLS%%</div></div></div>
+</section>
+
+<section class="s" id="symulator">
+ <header class="sh"><span class="eyebrow">Symulator</span><h2>Co by było, gdybyś regularnie wpłacał?</h2><p class="lede">Wpisz własne kwoty. Pokażemy, jak taki plan wypadał w prawdziwej historii Bitcoina i w przykładowych scenariuszach przyszłości. To kalkulator do oglądania liczb, a nie doradca.</p></header>
+ <div class="warnbox"><b>Ważne.</b> To symulator edukacyjny, a nie porada inwestycyjna ani rekomendacja. Nie jesteśmy licencjonowanym doradcą finansowym, nie znamy Twojej sytuacji i nie wykonujemy żadnych transakcji. Nikt nie zna przyszłej ceny Bitcoina, a historia z ostatnich 15 lat nie musi się powtórzyć. Bitcoin potrafił stracić 80% wartości. Nie inwestuj pieniędzy, których utrata by Cię mocno dotknęła, a przy ważnych decyzjach porozmawiaj z licencjonowanym doradcą. Nie uwzględniamy prowizji ani podatków (w Polsce zysk ze sprzedaży kryptowalut jest zwykle opodatkowany, sprawdź szczegóły u księgowego).</div>
+ <div class="panel" style="margin-top:18px"><div class="inputs">
+  <div class="field"><label for="pl0">Wpłata na start (zł)</label><input type="number" id="pl0" value="10000" min="0" step="1000" inputmode="numeric"></div>
+  <div class="field"><label for="plm">Wpłata co miesiąc (zł)</label><input type="number" id="plm" value="10000" min="0" step="1000" inputmode="numeric"></div>
+  <div class="field"><label for="ply">Czas trwania: <span id="plyv" class="mono">20 lat</span></label><input type="range" id="ply" min="1" max="20" step="1" value="20"></div>
+ </div><p class="muted sm" style="margin:14px 0 0">Wpłata na start jest jednorazowa, potem kwota z drugiego pola wpływa co miesiąc przez cały podany czas. Cała suma wpłat: <b id="pltot">–</b>.</p></div>
+
+ <div class="panel" style="margin-top:18px"><h3 class="sub">1. Jak taki plan wypadał w prawdziwej historii</h3>
+  <p class="muted sm" style="margin:0 0 6px" id="plhnote"></p>
+  <div class="field" style="margin-top:12px"><label for="plhy">Jak długi okres sprawdzamy w historii: <span id="plhyv" class="mono">5 lat</span></label><input type="range" id="plhy" min="1" max="14" step="1" value="5"></div>
+  <div class="field" style="margin-top:12px"><label for="plstart">Kiedy zaczynasz (data w przeszłości): <span id="plstartv" class="mono">–</span></label><input type="range" id="plstart" min="0" max="0" step="1" value="0"></div>
+  <div class="presets" id="plpick"><button data-k="worst">Najgorszy start w historii</button><button data-k="median">Typowy start</button><button data-k="best">Najlepszy start w historii</button></div>
+  <div class="pl-chart" id="plhchart"></div>
+  <div class="legend2" style="margin-top:6px"><span><i style="width:22px;height:3px;background:var(--accent)"></i>wartość Twoich bitcoinów (w zł)</span><span><i style="width:22px;height:3px;background:var(--muted)"></i>suma wpłat</span></div>
+  <div class="stats" id="plhstats"></div>
+  <table class="cmp" id="plcmp"></table>
+  <p class="note" id="plwin"></p></div>
+
+ <div class="panel" style="margin-top:18px"><h3 class="sub">2. Przykładowe scenariusze na przyszłość</h3>
+  <p class="muted sm" style="margin:0">To nie są prognozy. To przykładowe założenia o średnim rocznym zysku, żebyś zobaczył, jak działa procent składany i jak bardzo wyniki się rozjeżdżają przy tak dużych wahaniach ceny. Rzeczywistość może być lepsza lub gorsza od każdego z nich.</p>
+  <div class="presets" id="plpre"><button data-r="-5" data-v="55">Strata: −5% rocznie</button><button data-r="0" data-v="55">Bez zysku: 0%</button><button data-r="5" data-v="55">Ostrożny: 5%</button><button data-r="12" data-v="60" class="on">Umiarkowany: 12%</button><button data-r="25" data-v="65">Optymistyczny: 25%</button></div>
+  <div class="inputs" style="margin-top:6px"><div class="field"><label for="plr">Średni zysk rocznie (%)</label><input type="number" id="plr" value="12" step="1" inputmode="numeric"></div>
+   <div class="field"><label for="plv">Rozrzut cen: zmienność rocznie (%)</label><input type="number" id="plv" value="60" min="5" max="150" step="5" inputmode="numeric"></div>
+   <p class="muted sm" style="margin:0">Zmienność 60% rocznie to mniej więcej tyle, ile Bitcoin miał w ostatnich latach.</p></div>
+  <div class="pl-chart" id="plmchart" style="margin-top:12px"></div>
+  <div class="legend2" style="margin-top:6px"><span><i style="width:22px;height:8px;border-radius:4px;background:color-mix(in srgb,var(--blue) 35%,transparent)"></i>zakres, w którym wyląduje 8 na 10 symulacji</span><span><i style="width:22px;height:3px;background:var(--accent)"></i>typowy wynik (mediana)</span><span><i style="width:22px;height:3px;background:var(--muted)"></i>suma wpłat</span></div>
+  <div class="stats" id="plmstats"></div>
+  <p class="note" id="plmnote"></p></div>
 </section>
 
 <section class="s" id="slowniczek">
@@ -158,6 +190,64 @@ function draw(){if(!dEl)return;const h=+hz.value,W=Math.max(dEl.clientWidth,280)
  document.getElementById('hzup').textContent=Math.round(lerp(UP,h)*100)+'%';const vv=P0*Math.exp(zv);document.getElementById('hzview').textContent=nb(vv)+' USD ('+(vv/P0-1>=0?'+':'')+((vv/P0-1)*100).toFixed(1).replace('.',',')+'%)';
  document.querySelectorAll('#quick button').forEach(b=>b.classList.toggle('on',+b.dataset.h===days));}
 if(hz){hz.addEventListener('input',draw);document.querySelectorAll('#quick button').forEach(b=>b.onclick=()=>{hz.value=b.dataset.h;draw();});draw();let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(draw,120);});}
+})();
+
+/* --- symulator wpłat --- */
+(function(){
+const D=window.__BTC__;if(!D.plan)return;const PL=D.plan,M=PL.p.length,$=id=>document.getElementById(id);
+const nb=v=>Math.round(v).toLocaleString('pl-PL').replace(/\s/g,' ');
+const zl=v=>Math.abs(v)>=1e9?(v/1e9).toFixed(2).replace('.',',')+' mld zł':Math.abs(v)>=1e6?(v/1e6).toFixed(2).replace('.',',')+' mln zł':nb(v)+' zł';
+const pct=v=>(v>=0?'+':'−')+Math.abs(v).toFixed(0)+'%';
+const mon=s=>{const a=s.split('-');return ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'][+a[1]-1]+' '+a[0];};
+const P=()=>({init:Math.max(0,+$('pl0').value||0),mon:Math.max(0,+$('plm').value||0),years:+$('ply').value});
+const C=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function sim(s,N,init,m){let u=init/PL.p[s],c=init,min=1;const val=[init],con=[init];for(let i=1;i<=N;i++){const k=s+i;u+=m/PL.p[k];c+=m;const v=u*PL.p[k];val.push(v);con.push(c);if(c>0)min=Math.min(min,v/c);}return {val:val,con:con,final:val[N],contrib:c,min:min};}
+function plot(el,W,H,N,series,band,ymax){const pl=64,pr=14,pt=12,pb=26;const X=i=>pl+i/N*(W-pl-pr),Y=v=>pt+(1-v/ymax)*(H-pt-pb);let s='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'">';
+ let tick=ymax/4;const mag=Math.pow(10,Math.floor(Math.log10(tick)));[1,2,5,10].some(m=>{if(m*mag>=tick){tick=m*mag;return true;}return false;});
+ for(let v=0;v<=ymax;v+=tick){s+='<line x1="'+pl+'" x2="'+(W-pr)+'" y1="'+Y(v)+'" y2="'+Y(v)+'" stroke="'+C('--line')+'"/><text x="'+(pl-8)+'" y="'+(Y(v)+4)+'" text-anchor="end">'+(v>=1e9?(v/1e9).toFixed(v%1e9?1:0).replace('.',',')+' mld':v>=1e6?(v/1e6).toFixed(v%1e6?1:0).replace('.',',')+' mln':v>=1e3?Math.round(v/1e3)+' tys.':v)+'</text>';}
+ const yrs=N/12,st=yrs>12?4:yrs>6?2:1;for(let y=0;y<=yrs;y+=st){s+='<text x="'+X(y*12)+'" y="'+(H-6)+'" text-anchor="middle">'+(y===0?'start':y+' l.')+'</text>';}
+ if(band){const up=band.hi.map((v,i)=>X(i).toFixed(1)+','+Y(Math.min(v,ymax)).toFixed(1)),lo=band.lo.map((v,i)=>X(i).toFixed(1)+','+Y(v).toFixed(1)).reverse();s+='<polygon points="'+up.concat(lo).join(' ')+'" fill="'+C('--blue')+'" fill-opacity=".22"/>';}
+ series.forEach(se=>{s+='<polyline points="'+se.v.map((v,i)=>X(i).toFixed(1)+','+Y(Math.min(v,ymax)).toFixed(1)).join(' ')+'" fill="none" stroke="'+C(se.c)+'" stroke-width="'+(se.w||2.2)+'" '+(se.d?'stroke-dasharray="'+se.d+'"':'')+' stroke-linejoin="round"/>';});
+ el.innerHTML=s+'</svg>';}
+const stat=(a,b,c)=>'<div class="stat"><span>'+a+'</span><b>'+b+'</b>'+(c?'<small>'+c+'</small>':'')+'</div>';
+const fx=v=>'×'+v.toFixed(2).replace('.',',');
+let pickStart=null;
+function yl(n){return n+(n===1?' rok':n<5?' lata':' lat');}
+function history(){const q=P(),init=q.init,m=q.mon,years=q.years;const maxY=Math.floor((M-1)/12);const hy=+$('plhy').value;$('plhy').max=maxY-1;const Yr=Math.min(hy,maxY-1),N=Yr*12;
+ $('plyv').textContent=yl(years);$('plhyv').textContent=yl(Yr);$('pltot').textContent=zl(init+m*years*12);
+ $('plhnote').textContent='Mamy dane o cenie Bitcoina z około '+maxY+' lat, więc 20-letniej historii nie ma. Dlatego sprawdzamy krótsze okresy: wybierz, jak długie, a pokażemy wszystkie możliwe starty z miesięcznymi wpłatami przez '+yl(Yr)+' (wpłaty razem: '+zl(init+m*N)+'). Dłuższe okresy mają mniej możliwych startów, więc wyniki są mniej wiarygodne.';
+ const starts=M-1-N+1;if(starts<=0)return;const res=[];for(let s=0;s<starts;s++){const r=sim(s,N,init,m);res.push({s:s,mult:r.final/r.contrib,min:r.min,r:r});}
+ const sorted=res.slice().sort((a,b)=>a.mult-b.mult),med=sorted[Math.floor(sorted.length/2)];
+ const sl=$('plstart');sl.max=starts-1;if(pickStart===null||pickStart>starts-1)pickStart=sorted[0].s;if(+sl.value!==pickStart)sl.value=pickStart;
+ const cur=res[pickStart],r=cur.r;$('plstartv').textContent=mon(PL.m[pickStart])+' → '+mon(PL.m[pickStart+N]);
+ const ymax=Math.max.apply(null,r.val.concat(r.con))*1.08,W=Math.max($('plhchart').clientWidth,280),H=Math.round(Math.max(210,Math.min(300,W*.36)));
+ plot($('plhchart'),W,H,N,[{v:r.con,c:'--muted',w:1.8,d:'5 4'},{v:r.val,c:'--accent',w:2.6}],null,ymax);
+ const gain=r.final-r.contrib;
+ $('plhstats').innerHTML=stat('Wpłacisz razem',zl(r.contrib))+stat('Wartość na końcu',zl(r.final),(gain>=0?'zysk ':'strata ')+zl(Math.abs(gain))+' ('+pct(gain/r.contrib*100)+')')+stat('Najgorszy moment po drodze',pct((r.min-1)*100),'tak głęboko pod sumą wpłat wartość była w najgorszej chwili')+stat('Razy więcej niż wpłacono',fx(r.final/r.contrib));
+ const lump=init+m*N,lumpV=lump/PL.p[pickStart]*PL.p[pickStart+N];
+ $('plcmp').innerHTML='<tr><th>Sposób</th><th>Wpłacono</th><th>Wartość na końcu</th></tr><tr><td>Co miesiąc po równo (Twój plan)</td><td>'+zl(r.contrib)+'</td><td>'+zl(r.final)+'</td></tr><tr><td>Cała suma od razu na początku (gdybyś ją miał)</td><td>'+zl(lump)+'</td><td>'+zl(lumpV)+'</td></tr><tr><td>Tylko odkładanie gotówki (bez zysku i inflacji)</td><td>'+zl(r.contrib)+'</td><td>'+zl(r.contrib)+'</td></tr>';
+ const loss=res.filter(x=>x.mult<1).length;
+ $('plwin').innerHTML='W historii było <b>'+starts+'</b> możliwych dni startu (co miesiąc). Przy takim planie <b>'+(loss/starts*100).toFixed(0)+'%</b> z nich skończyło się na minusie względem wpłat, typowy wynik to <b>'+fx(med.mult)+'</b>, najgorszy <b>'+fx(sorted[0].mult)+'</b>, a najlepszy <b>'+fx(sorted[sorted.length-1].mult)+'</b>. Historia jest krótka i obejmuje okres ogromnych wzrostów, więc nie traktuj tych wyników jak obietnicy na przyszłość. Okna nakładają się na siebie, więc to w praktyce kilka różnych epizodów, a nie kilkaset niezależnych prób.';
+ window.__plRes={sorted:sorted,med:med};}
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function gauss(r){let u=0,v;while(!u)u=r();v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function scen(){const q0=P(),init=q0.init,m=q0.mon,years=q0.years;const N=years*12,mu=(+$('plr').value||0)/100,sg=Math.max(.05,(+$('plv').value||60)/100),Pn=1500,r=rng(20261028);
+ const dr=(Math.log(Math.max(1+mu,.01))-.5*sg*sg)/12,vol=sg/Math.sqrt(12);const cols=[];for(let i=0;i<=N;i++)cols.push(new Float32Array(Pn));
+ for(let p=0;p<Pn;p++){let v=init;cols[0][p]=v;for(let i=1;i<=N;i++){v=v*Math.exp(dr+vol*gauss(r))+m;cols[i][p]=v;}}
+ const q=(a,f)=>a[Math.min(a.length-1,Math.floor(f*a.length))],lo=[],md=[],hi=[];for(let i=0;i<=N;i++){const a=Array.from(cols[i]).sort((x,y)=>x-y);lo.push(q(a,.1));md.push(q(a,.5));hi.push(q(a,.9));}
+ const con=[];for(let i=0;i<=N;i++)con.push(init+m*i);const tot=con[N],fin=Array.from(cols[N]),below=fin.filter(x=>x<tot).length/Pn;
+ const ymax=Math.max(hi[N],tot)*1.05,W=Math.max($('plmchart').clientWidth,280),H=Math.round(Math.max(210,Math.min(300,W*.36)));
+ plot($('plmchart'),W,H,N,[{v:con,c:'--muted',w:1.8,d:'5 4'},{v:md,c:'--accent',w:2.6}],{lo:lo,hi:hi},ymax);
+ $('plmstats').innerHTML=stat('Wpłacisz razem',zl(tot))+stat('Typowy wynik (mediana)',zl(md[N]),fx(md[N]/tot))+stat('8 na 10 wyników mieści się',zl(lo[N])+' – '+zl(hi[N]))+stat('Szansa, że wartość < wpłaty',(below*100).toFixed(0)+'%','w tych symulacjach');
+ $('plmnote').innerHTML='Symulujemy 1500 losowych ścieżek ceny. Zakres między dołem a górą jest bardzo szeroki, bo przy wahaniach '+(sg*100).toFixed(0)+'% rocznie przez '+years+' lat wynik zależy w ogromnej mierze od przypadku. Bitcoin nie ma gwarancji wzrostu, a przeszłe zyski nie zapowiadają przyszłych.';}
+function all(){history();scen();}
+['pl0','plm','ply','plhy'].forEach(i=>$(i).addEventListener('input',()=>{pickStart=null;all();}));
+['plr','plv'].forEach(i=>$(i).addEventListener('input',()=>{document.querySelectorAll('#plpre button').forEach(b=>b.classList.remove('on'));scen();}));
+$('plstart').addEventListener('input',e=>{pickStart=+e.target.value;history();});
+document.querySelectorAll('#plpick button').forEach(b=>b.onclick=()=>{const R=window.__plRes;if(!R)return;pickStart=b.dataset.k==='worst'?R.sorted[0].s:b.dataset.k==='best'?R.sorted[R.sorted.length-1].s:R.med.s;history();});
+document.querySelectorAll('#plpre button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#plpre button').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('plr').value=b.dataset.r;$('plv').value=b.dataset.v;scen();});
+all();let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(all,150);});
+const old=window.__redraw;window.__redraw=function(){if(old)old();all();};
 })();
 </script>
 </body></html>

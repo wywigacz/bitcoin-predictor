@@ -7,6 +7,7 @@
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 
@@ -16,12 +17,14 @@ import config as C
 import ensemble
 import events
 import model
+import news
 import regularity
 import report
 import scan
 import sources
 import store
 import world
+import worldlog
 
 TASK = "BTC-Predictor"
 
@@ -42,6 +45,18 @@ def update(full=False):
     fr = res["frame"]
     print("Zdarzenia i atrybucja ruchów ...")
     E = events.analyze_events(df)
+    print("Dziennik świata (Wikipedia) i nagłówki o Bitcoinie (GDELT) ...")
+    try:
+        last = df.index[-1] - pd.Timedelta(days=1)
+        worldlog.update(last, budget_s=3600 if full else 300)
+        worldlog.save_daily(pd.date_range(worldlog.START, last))
+    except Exception as e:
+        print("  [uwaga] dziennik świata:", str(e)[:120])
+    try:
+        if not os.environ.get("BTC_SKIP_NEWS"):                 # pozwala pominąć, gdy nagłówki pobiera inny proces
+            news.update_news(df, budget_s=1800 if full else 240)
+    except Exception as e:
+        print("  [uwaga] nagłówki GDELT:", str(e)[:120])
     print("Dane ze świata (rynki, uwaga, pogoda, Słońce) ...")
     try:
         raw_w, fails = world.update_world(full=full or not world.WORLD_CSV.exists())
