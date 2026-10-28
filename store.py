@@ -63,9 +63,12 @@ def log_stats(log):
     d = log.dropna(subset=["actual"])
     if d.empty:
         return None
-    sign_ok = np.sign(d["p50"] - d["price0"]) == np.sign(d["actual"] - d["price0"])
+    # kierunek ma sens tylko dla prognoz, które go zakładały (środek różni się od ceny o > 0,5%)
+    dirs = d[(d["p50"] / d["price0"] - 1).abs() > 0.005]
+    sign_ok = np.sign(dirs["p50"] - dirs["price0"]) == np.sign(dirs["actual"] - dirs["price0"])
     out = {"n": int(len(d)), "coverage80": float(d["in_band"].mean()),
-           "mape": float(d["err_pct"].abs().mean()), "direction": float(sign_ok.mean()), "by_h": {}}
+           "mape": float(d["err_pct"].abs().mean()),
+           "direction": float(sign_ok.mean()) if len(dirs) >= 5 else None, "direction_n": int(len(dirs)), "by_h": {}}
     for h, g in d.groupby("horizon"):
         out["by_h"][int(h)] = {"n": int(len(g)), "coverage80": float(g["in_band"].mean()),
                                "mape": float(g["err_pct"].abs().mean())}

@@ -298,7 +298,7 @@ def walk_forward(Zv, zt, H, N, comp_col, knn_cols, Zraw_comp, dates=None, P=None
         out["knn"][j] = np.quantile(z[nn], QS)
         if j == len(T_all) - 1 and dates is not None:
             contrib = (Xa[t] - mx) * beta
-            info["ridge"] = sorted(zip(Zv.columns, contrib.tolist(), Xa[t].tolist()), key=lambda a: -abs(a[1]))[:8]
+            info["ridge"] = sorted(zip(Zv.columns, contrib.tolist(), (Xa[t] - mx).tolist()), key=lambda a: -abs(a[1]))[:8]
             # najbliższe analogi rozrzucone w czasie (min. 30 dni odstępu)
             order, picked = np.argsort(d), []
             for o in order:

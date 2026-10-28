@@ -1,0 +1,163 @@
+<header class="bar"><div class="bar-in">
+ <a class="brand" href="#top"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="var(--card2)" stroke="var(--line2)"/><path d="M7 21a9 9 0 1 1 18 0" fill="none" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round"/><path d="M16 21l4.6-7" stroke="var(--green)" stroke-width="2.6" stroke-linecap="round"/><circle cx="16" cy="21" r="2.2" fill="var(--fg)"/></svg><span>Barometr Bitcoina</span></a>
+ <nav class="nav" id="nav"><a href="#skrot">W skrócie</a><a href="#prognoza">Prognoza</a><a href="#dlaczego">Dlaczego</a><a href="#wskazniki">Wskaźniki</a><a href="#wydarzenia">Wydarzenia</a><a href="#swiat">Świat</a><a href="#metody">Metody</a><a href="#slowniczek">Słowniczek</a></nav>
+ <span class="chip %%SRCCLS%%" title="Ile źródeł danych odpowiada"><i></i>%%SRCOK%%</span>
+ <button class="tg" id="tg" aria-label="Zmień motyw jasny/ciemny" title="Jasny / ciemny"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/></svg></button>
+</div></header>
+
+<div class="wrap" id="top">
+<h1 class="sr">Barometr Bitcoina: prognoza ceny Bitcoina prostym językiem</h1>
+<section class="hero">
+ %%ISOBARS%%
+ <div>
+  <div class="dateline rise"><span class="eyebrow">Biuletyn ceny · Bitcoin / USD</span><span class="chip mono">dane z %%ASOF%% · odświeżono %%NOW%%</span></div>
+  <div class="bigprice rise" style="animation-delay:.06s"><span data-count="%%PRICERAW%%">%%PRICE%%</span><small>USD</small></div>
+  <p class="verdict rise" style="animation-delay:.12s">%%VERDICT%%</p>
+  <div class="deltas rise" style="animation-delay:.18s">%%DELTAS%%</div>
+  <p class="muted sm" style="margin:14px 0 0">%%ATH%%</p>
+ </div>
+ <div class="baro rise" style="animation-delay:.1s">%%GAUGE%%<div class="baro-cap">Ocena rynku<span>%%COMP%% w skali od −1 (drogo) do +1 (tanio)</span></div></div>
+</section>
+
+<section class="s" id="skrot">
+ <header class="sh"><span class="eyebrow">W skrócie</span><h2>Co warto wiedzieć w pół minuty</h2><p class="lede">Najważniejsze wnioski prostym językiem. Szczegóły i uzasadnienie są niżej.</p></header>
+ <div class="panel brief"><ul>%%SUMBULLETS%%</ul><div class="tiles4">%%TILES%%</div></div>
+</section>
+
+<section class="s" id="prognoza">
+ <header class="sh"><span class="eyebrow">Prognoza</span><h2>Gdzie może być cena?</h2><p class="lede">Przesuń suwak, żeby zobaczyć, jak szeroki jest zakres cen za dowolną liczbę dni. Im dalej w przyszłość, tym większa niepewność. Wysokość krzywej pokazuje, które ceny są bardziej prawdopodobne.</p></header>
+ <div class="panel scen">
+  <div class="readout">
+   <span class="eyebrow" id="hzlabel">Za 30 dni</span>
+   <div class="big" id="hzmain">70 – 93 <small>tys. USD</small></div>
+   <div class="muted sm" id="hzdate">27 listopada</div>
+   <input type="range" id="hz" min="1" max="180" step="1" value="30" aria-label="Za ile dni">
+   <div class="quick" id="quick"><button data-h="7">Tydzień</button><button data-h="30" class="on">Miesiąc</button><button data-h="90">3 miesiące</button><button data-h="180">Pół roku</button></div>
+   <dl class="kv2"><dt>Środek prognozy</dt><dd id="hzmid">–</dd><dt>Szansa, że będzie drożej niż dziś</dt><dd id="hzup">–</dd><dt>Co sugerują wskaźniki*</dt><dd id="hzview">–</dd></dl>
+   <p class="muted sm" style="margin:10px 0 0">*Tylko ciekawostka: testy na historii nie potwierdzają, że wskaźniki potrafią przewidzieć kierunek.</p>
+  </div>
+  <div class="dens" id="dens"></div>
+ </div>
+ <div class="panel" style="margin-top:18px">
+  <div class="chart-head"><div class="legend"><span><i style="background:var(--fg)"></i>Cena</span><span><i style="background:var(--accent)"></i>Środek prognozy</span>
+   <span><i style="background:var(--amber)"></i>Średnia cena zakupu monet</span><span><i style="background:var(--violet)"></i>Średnia z 4 lat</span>
+   <label class="evt"><input type="checkbox" id="evtoggle" checked> wydarzenia</label></div>
+   <div class="seg" id="rng"><button data-m="3">3 mies.</button><button data-m="12" class="on">Rok</button><button data-m="36">3 lata</button><button data-m="0">Wszystko</button></div></div>
+  <div class="chart" id="chart"><div class="cx" id="cx"></div><div class="tip" id="tip"></div></div>
+  <div class="legend2"><span><i style="width:22px;height:8px;border-radius:4px;background:color-mix(in srgb,var(--blue) 35%,transparent)"></i>bardzo prawdopodobny zakres (9 na 10)</span>
+   <span><i style="width:22px;height:8px;border-radius:4px;background:color-mix(in srgb,var(--blue) 65%,transparent)"></i>najbardziej prawdopodobny zakres (1 na 2)</span>
+   <span>Pionowe linie: halvingi. Kropki: ważne wydarzenia (zielone: cena potem rosła, czerwone: spadała). Najedź kursorem.</span></div>
+ </div>
+ <p class="note">Zakres jest szeroki, bo Bitcoin mocno się waha. To nie jest błąd prognozy, tylko uczciwy obraz niepewności.</p>
+</section>
+
+<section class="s" id="dlaczego">
+ <header class="sh"><span class="eyebrow">Uzasadnienie</span><h2>Dlaczego taka prognoza?</h2><p class="lede">Krok po kroku: skąd biorą się liczby, co o nich sądzą nasze metody i na ile można im ufać.</p></header>
+ <div class="cols2">%%WHY%%</div>
+</section>
+
+<section class="s" id="wskazniki">
+ <header class="sh"><span class="eyebrow">Wskaźniki</span><h2>Czy Bitcoin jest teraz tani czy drogi?</h2><p class="lede">%%NSIG%% wskaźników ocenia rynek od −1 (historycznie drogo) do +1 (historycznie tanio). Te, które lepiej sprawdzały się w przeszłości, liczą się bardziej, najbardziej: zysk posiadaczy i średnia z 4 lat.</p></header>
+ %%SIGNALS%%
+ <div class="panel" style="margin-top:18px"><h3 class="ct">Gdzie jesteśmy w cyklu 4-letnim?</h3>
+  <p class="muted sm" style="margin:0 0 12px">Co około 4 lata następuje halving, czyli zmniejszenie o połowę nagrody dla ludzi „kopiących” Bitcoina. Historycznie ceny rosły po nim przez około 1,5 roku, potem spadały.</p>
+  %%CYCLE%%
+  <div class="facts"><div class="fact"><span>Średnia cena zakupu monet</span><b>%%REAL%% USD</b></div><div class="fact"><span>Zysk posiadaczy (MVRV)</span><b>%%MVRV%%</b></div><div class="fact"><span>Ocena rynku</span><b>%%COMP%%</b></div></div></div>
+ <div class="panel" style="margin-top:18px"><h3 class="ct">Ocena rynku w czasie (zielone: tanio, czerwone: drogo)</h3><div class="chart" id="chart2"><div class="tip" id="tip2"></div></div></div>
+</section>
+
+<section class="s" id="wydarzenia">
+ <header class="sh"><span class="eyebrow">Wydarzenia</span><h2>Co działo się na świecie, gdy cena skakała?</h2><p class="lede">Zebraliśmy %%NEVENTS%% wydarzeń: ważne decyzje (np. zakazy w Chinach, upadek giełdy FTX, zatwierdzenie funduszy ETF), terminy (posiedzenia amerykańskiego banku centralnego, wybory), włamania do giełd oraz nagłe załamania na rynkach świata wykrywane automatycznie. Sprawdzamy, jak zwykle reagował Bitcoin.</p></header>
+ <div class="two2"><div class="panel"><h3 class="ct">Największe skoki ceny i co się wtedy działo</h3>%%MOVES%%</div>
+ <div class="panel"><h3 class="ct">Jak zwykle reaguje Bitcoin na różne rodzaje wydarzeń</h3>%%STUDY%%</div></div>
+ <div class="panel" style="margin-top:18px"><h3 class="ct">Nadchodzące wydarzenia</h3>%%UPCOMING%%</div>
+</section>
+
+<section class="s" id="swiat">
+ <header class="sh"><span class="eyebrow">Świat</span><h2>Nastroje, wzorce i szukanie powiązań</h2><p class="lede">Zainteresowanie Bitcoinem w różnych krajach, ruchy dużych graczy, test, czy rynek ma jakiekolwiek powtarzalne wzorce, i przeszukanie setek wskaźników ze świata.</p></header>
+ <div class="tiles3">%%REGTILES%%</div>
+ <div class="panel" style="margin-top:18px"><h3 class="ct">Zainteresowanie Bitcoinem w różnych krajach (ostatnie 30 dni, w porównaniu z zeszłym rokiem)</h3><p class="muted sm" style="margin:2px 0 8px">Liczymy, ile osób czyta hasło „Bitcoin” na Wikipedii w danym języku. Gdy zainteresowanie rośnie, zwykle rośnie też cena (i odwrotnie).</p>%%REGROWS%%</div>
+ <h3 class="ct" style="margin:40px 0 8px;font-size:26px">Czy rynek ma jakieś wzorce, czy to czysty przypadek?</h3>
+ <p class="lede" style="margin-bottom:16px">Sprawdzamy kilkoma sposobami, czy ruchy ceny mają powtarzalną strukturę, czy przypominają rzut monetą. Liczymy to z ostatniego roku. Pasek pod liczbą pokazuje, jak dzisiejsza wartość wypada na tle całej historii.</p>
+ <div class="tiles3">%%REGULARITY%%</div>
+ <p class="note"><b>Wniosek:</b> %%REGVERDICT%%</p>
+ <h3 class="ct" style="margin:40px 0 8px;font-size:26px">Szukanie powiązań na całym świecie</h3>
+ %%SCANHEAD%%
+ <div style="margin-top:18px">%%SCANBODY%%</div>
+</section>
+
+<section class="s" id="metody">
+ <header class="sh"><span class="eyebrow">Metody</span><h2>Które metody prognozowania naprawdę działają?</h2><p class="lede">Wypróbowaliśmy kilka metod. Każdą sprawdziliśmy na historii tak, jakby używano jej na bieżąco, i porównaliśmy z najprostszym założeniem: „cena zostanie taka sama”. Metoda trafia do prognozy tylko wtedy, gdy wyraźnie je pokona. Wahania ceny liczymy z trzech uzupełniających się sposobów (%%VOLW%%).</p></header>
+ <div class="grid2">%%MODELS%%</div>
+ <p class="note">%%CONCLUSION%%</p>
+ <h3 class="ct" style="margin:40px 0 12px;font-size:26px">Czy nasze dotychczasowe prognozy się sprawdziły?</h3>
+ %%TRACK%%
+ <div class="two2" style="margin-top:28px"><div class="panel"><h3 class="ct">Z czym Bitcoin ostatnio się porusza (90 dni)</h3><p class="muted sm" style="margin:0 0 8px">Plus: rosną i spadają razem. Minus: w przeciwne strony. Zero: niezależnie.</p>%%CORR%%</div>
+ <div class="panel"><h3 class="ct">Źródła danych</h3><div class="pills">%%PILLS%%</div></div></div>
+</section>
+
+<section class="s" id="slowniczek">
+ <header class="sh"><span class="eyebrow">Słowniczek</span><h2>Trudne słowa po ludzku</h2></header>
+ <div class="panel"><dl class="gloss">%%GLOSSARY%%</dl></div>
+</section>
+
+<div class="disc"><b>To nie jest porada inwestycyjna.</b> Nikt nie potrafi wiarygodnie przewidzieć ceny Bitcoina. Pokazujemy możliwe scenariusze i uczciwie mówimy, na ile są wiarygodne. Historia obejmuje tylko cztery pełne cykle, a rynek się zmienia, więc nie opieraj na tym ważnych decyzji finansowych.</div>
+<footer>Barometr Bitcoina · dane: Bitstamp, CoinMetrics, Blockchain.com, Yahoo Finance, DefiLlama, OKX, Deribit, CFTC, Upbit, Wikipedia, CoinGecko, alternative.me</footer>
+</div>
+
+<script>
+window.__BTC__=%%DATA%%;
+%%CHARTJS%%
+/* --- nowe interakcje --- */
+(function(){
+const D=window.__BTC__,N=D.dates.length,P0=D.price[N-1],LAST=D.dates[N-1];
+const root=document.documentElement,sget=k=>{try{return localStorage.getItem(k)}catch(e){return null}},sset=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+const tgb=document.getElementById('tg');
+const saved=sget('theme');if(saved==='light'||saved==='dark')root.setAttribute('data-theme',saved);
+if(tgb)tgb.onclick=()=>{const cur=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');const nx=cur==='dark'?'light':'dark';root.setAttribute('data-theme',nx);sset('theme',nx);setTimeout(()=>{window.__redraw&&window.__redraw();draw()},30);};
+const nb=v=>Math.round(v).toLocaleString('pl-PL').replace(/\s/g,' ');
+document.querySelectorAll('[data-count]').forEach(el=>{const to=parseFloat(el.dataset.count);if(!isFinite(to))return;const t0=performance.now(),from=to*.9;
+ const step=t=>{const k=Math.min(1,(t-t0)/900),e=1-Math.pow(1-k,3);el.textContent=nb(from+(to-from)*e);if(k<1)requestAnimationFrame(step);};requestAnimationFrame(step);});
+const links=[...document.querySelectorAll('#nav a')];
+if('IntersectionObserver' in window){const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id));}}),{rootMargin:'-45% 0px -50% 0px'});
+ document.querySelectorAll('section.s').forEach(s=>io.observe(s));}
+/* suwak: rozkład możliwych cen */
+const H=D.fc.map(f=>f.h),K=['p5','p10','p25','p50','p75','p90','p95'],QF=[.05,.1,.25,.5,.75,.9,.95];
+const Z=D.fc.map(f=>K.map(k=>Math.log(f[k]/P0)/Math.sqrt(f.h))),ZV=D.fc.map((f,i)=>Math.log(D.view[i]/P0)/Math.sqrt(f.h)),UP=D.up;
+const lerp=(arr,h)=>{if(h<=H[0])return arr[0];for(let i=1;i<H.length;i++)if(h<=H[i]){const t=(h-H[i-1])/(H[i]-H[i-1]);const a=arr[i-1],b=arr[i];return Array.isArray(a)?a.map((v,j)=>v+t*(b[j]-v)):a+t*(b-a);}return arr[arr.length-1];};
+function dens(h){const z=lerp(Z,h),s=Math.sqrt(h);let x=z.map(v=>v*s),F=QF.slice();const dl=x[1]-x[0],dr=x[6]-x[5];
+ x=[x[0]-2.6*dl,...x,x[6]+2.6*dr];F=[.002,...F,.998];const n=x.length,d=[];for(let k=0;k<n-1;k++)d.push((F[k+1]-F[k])/(x[k+1]-x[k]));
+ const m=[d[0]];for(let k=1;k<n-1;k++)m.push((d[k-1]+d[k])/2);m.push(d[n-2]);
+ for(let k=0;k<n-1;k++){if(d[k]===0){m[k]=0;m[k+1]=0;}else{const a=m[k]/d[k],b=m[k+1]/d[k],r=a*a+b*b;if(r>9){const t=3/Math.sqrt(r);m[k]=t*a*d[k];m[k+1]=t*b*d[k];}}}
+ /* gęstość z różnic kwantyli (średnia gęstość w każdym przedziale), potem gładkie jądro Gaussa: bez sztucznych garbów */
+ const xm=[],dm=[];for(let k=0;k<n-1;k++){xm.push((x[k]+x[k+1])/2);dm.push(d[k]);}
+ const G=160,xs=[],raw=[];for(let i=0;i<=G;i++){const xv=x[0]+(x[n-1]-x[0])*i/G;xs.push(xv);let v;
+  if(xv<=xm[0])v=dm[0];else if(xv>=xm[xm.length-1])v=dm[dm.length-1];else{let k=0;while(xv>xm[k+1])k++;const t=(xv-xm[k])/(xm[k+1]-xm[k]);v=dm[k]+t*(dm[k+1]-dm[k]);}raw.push(v);}
+ const bw=0.42*(x[6]-x[2])/1.35/((x[n-1]-x[0])/G),pts=[];const R=Math.ceil(bw*3);
+ for(let i=0;i<=G;i++){let a=0,b=0;for(let j=-R;j<=R;j++){const ii=i+j;if(ii<0||ii>G)continue;const w=Math.exp(-.5*j*j/(bw*bw));a+=w*raw[ii];b+=w;}pts.push([xs[i],a/b]);}
+ return {pts,x:x.slice(1,8)};}
+const dEl=document.getElementById('dens'),hz=document.getElementById('hz');
+function draw(){if(!dEl)return;const h=+hz.value,W=Math.max(dEl.clientWidth,280),Hh=Math.round(Math.max(200,Math.min(300,W*.42))),pl=10,pr=10,pt=26,pb=34;
+ const css=getComputedStyle(root),C=n=>css.getPropertyValue(n).trim(),{pts,x}=dens(h);const x0=pts[0][0],x1=pts[pts.length-1][0],ym=Math.max(...pts.map(p=>p[1]));
+ const X=v=>pl+(v-x0)/(x1-x0)*(W-pl-pr),Y=v=>pt+(1-v/ym)*(Hh-pt-pb),B=Hh-pb;
+ const q=lerp(Z,h).map(v=>P0*Math.exp(v*Math.sqrt(h)));
+ let s=`<svg viewBox="0 0 ${W} ${Hh}" width="${W}" height="${Hh}"><defs><linearGradient id="dg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${C('--blue')}" stop-opacity=".55"/><stop offset="1" stop-color="${C('--blue')}" stop-opacity=".04"/></linearGradient>
+ <clipPath id="dc"><rect x="${X(x[1])}" y="0" width="${X(x[5])-X(x[1])}" height="${Hh}"/></clipPath></defs>`;
+ const path=pts.map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join('');
+ s+=`<path d="${path}L${X(x1)} ${B}L${X(x0)} ${B}Z" fill="${C('--blue')}" fill-opacity=".10"/><path d="${path}L${X(x1)} ${B}L${X(x0)} ${B}Z" fill="url(#dg)" clip-path="url(#dc)"/>`;
+ s+=`<path d="${path}" fill="none" stroke="${C('--blue')}" stroke-width="2.2" stroke-linejoin="round"/><line x1="${pl}" x2="${W-pr}" y1="${B}" y2="${B}" stroke="${C('--line2')}"/>`;
+ const x0n=0;s+=`<line x1="${X(x0n)}" x2="${X(x0n)}" y1="${pt-8}" y2="${B}" stroke="${C('--fg')}" stroke-dasharray="3 4"/><text x="${X(x0n)}" y="${pt-12}" text-anchor="middle" style="fill:${C('--fg')}">dziś ${nb(P0/1000)} tys.</text>`;
+ const xm=x[3];s+=`<line x1="${X(xm)}" x2="${X(xm)}" y1="${Y(ym*.0)}" y2="${pt+8}" stroke="${C('--accent')}" stroke-width="2.4"/>`;
+ const lab=(v,t,a)=>`<text x="${X(v)}" y="${B+16}" text-anchor="${a}">${t}</text><line x1="${X(v)}" x2="${X(v)}" y1="${B}" y2="${B+5}" stroke="${C('--muted')}"/>`;
+ s+=lab(x[1],nb(q[1]/1000)+' tys.','middle')+lab(x[5],nb(q[5]/1000)+' tys.','middle');
+ const zv=lerp(ZV,h)*Math.sqrt(h);if(zv>x0&&zv<x1){const px=X(zv),py=B-8;s+=`<path d="M${px} ${py-7}L${px+6} ${py}L${px} ${py+7}L${px-6} ${py}Z" fill="${C('--bg')}" stroke="${C('--violet')}" stroke-width="2"/>`;}
+ s+=`</svg>`;dEl.innerHTML=s;
+ const days=Math.round(h),dt=new Date((LAST+days)*864e5);
+ document.getElementById('hzlabel').textContent=days===1?'Jutro':'Za '+days+' dni';document.getElementById('hzdate').textContent=dt.toLocaleDateString('pl-PL',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
+ document.getElementById('hzmain').innerHTML=nb(q[1]/1000)+' – '+nb(q[5]/1000)+' <small>tys. USD</small>';document.getElementById('hzmid').textContent=nb(q[3])+' USD';
+ document.getElementById('hzup').textContent=Math.round(lerp(UP,h)*100)+'%';const vv=P0*Math.exp(zv);document.getElementById('hzview').textContent=nb(vv)+' USD ('+(vv/P0-1>=0?'+':'')+((vv/P0-1)*100).toFixed(1).replace('.',',')+'%)';
+ document.querySelectorAll('#quick button').forEach(b=>b.classList.toggle('on',+b.dataset.h===days));}
+if(hz){hz.addEventListener('input',draw);document.querySelectorAll('#quick button').forEach(b=>b.onclick=()=>{hz.value=b.dataset.h;draw();});draw();let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(draw,120);});}
+})();
+</script>
+</body></html>
