@@ -762,6 +762,57 @@ def _bars(rows, scale=0.6):
     return out
 
 
+def extra_html():
+    """Kafelki z dodatkowymi sygnałami: płynność dolara, stablecoiny, giełdy, Lightning, pozycje funduszy, kosmos, dzikie karty."""
+    import extra as XT
+    import world as W
+    if not XT.OUT.exists():
+        return ""
+    x = pd.read_csv(XT.OUT, index_col=0, parse_dates=True)
+    pl = lambda v, d=1: f"{v:+.{d}f}".replace(".", ",")
+    tiles = []
+
+    def chg(col, days, title, note, scale=1.0):
+        if col not in x:
+            return
+        s = x[col].dropna()
+        s = s[s > 0]
+        if len(s) < days + 30:
+            return
+        s = s.resample("D").last().ffill(limit=10)
+        c = (s / s.shift(days) - 1).dropna() * 100
+        tiles.append((title, pl(float(c.iloc[-1])) + "%", float((c < c.iloc[-1]).mean()), note))
+
+    chg("x_netliq", 30, "Płynność dolara netto (miesiąc)", "Pieniądz, który Fed wpompował w system, minus to, co leży na koncie rządu i w reverse repo. Wzrost zwykle sprzyja ryzykownym aktywom.")
+    chg("x_usdt", 30, "Nowe dolary cyfrowe: USDT (miesiąc)", "Ile przybyło Tethera. Nowe stablecoiny to „gotówka” czekająca na zakupy krypto.")
+    chg("x_exsupply", 30, "Bitcoiny leżące na giełdach (miesiąc)", "Spadek oznacza, że ludzie wypłacają monety do własnych portfeli, czyli raczej trzymają, niż sprzedają.")
+    chg("x_tvl", 30, "Pieniądze w DeFi (miesiąc)", "Wartość zablokowana w zdecentralizowanych finansach. Pokazuje apetyt na ryzyko w całym świecie krypto.")
+    chg("x_ln_cap", 90, "Sieć Lightning (3 miesiące)", "Ile bitcoinów zablokowano w szybkiej sieci płatności. Miara faktycznego używania BTC do płacenia.")
+    for col, title in (("x_cot_es", "Fundusze lewarowane na S&P 500"), ("x_cot_jy", "Fundusze lewarowane na jenie")):
+        if col in x and x[col].notna().sum() > 50:
+            s = x[col].dropna()
+            tiles.append((title, pl(float(s.iloc[-1]), 0) + "%", float((s < s.iloc[-1]).mean()),
+                          "Pozycja netto funduszy hedgingowych jako % rynku (dane CFTC). Skrajne wartości bywają przed gwałtownym odwróceniem."
+                          + (" Duże zakłady przeciw jenowi kończyły się wcześniej nagłym „odkręcaniem” i spadkami ryzykownych aktywów (sierpień 2024)." if col == "x_cot_jy" else "")))
+    if "x_kp" in x:
+        s = x["x_kp"].dropna()
+        k30 = s.rolling(30).mean()
+        tiles.append(("Burze magnetyczne na Słońcu (30 dni)", f"{k30.iloc[-1]:.1f}".replace(".", ","), float((k30.dropna() < k30.iloc[-1]).mean()),
+                      "Średni indeks Kp. To „dzika karta”: niektóre badania łączą burze geomagnetyczne z nastrojami inwestorów. Sprawdzamy, nie zakładamy."))
+    today = pd.Timestamp.now().normalize()
+    st = W.static_series(pd.date_range(today - pd.Timedelta(days=60), today + pd.Timedelta(days=60)))
+    m = st["cal_mercury"]
+    now = bool(m.loc[today])
+    nxt = m.loc[today:]
+    change = nxt.index[nxt != nxt.iloc[0]]
+    mon = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"]
+    when = f"{change[0].day} {mon[change[0].month - 1]}" if len(change) else "?"
+    tiles.append(("Retrogradacja Merkurego", "trwa" if now else "nie trwa", None,
+                  ("Kończy się " if now else "Następna od ") + when + ". Astrologia nie ma podstaw naukowych; śledzimy ją tylko po to, by sprawdzić, czy tłum w nią wierzący zmienia zachowanie (do tej pory: nie)."))
+    tl = "".join(f'<div class="card tile"><span class="muted sm">{a}</span><b>{b}</b>{_pctbar(c) if c is not None else ""}<span class="muted sm">{d}</span></div>' for a, b, c, d in tiles)
+    return f'<div class="tiles3">{tl}</div>'
+
+
 def markets_html(M, df):
     if not M:
         return '<div class="card empty"><b>Brak danych z rynków akcji i obligacji</b><p class="muted">Pojawią się przy następnej aktualizacji.</p></div>'
@@ -890,6 +941,7 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=No
             .replace("%%UPCOMING%%", upcoming_html(E))
             .replace("%%REGTILES%%", reg2_tiles)
             .replace("%%MARKETS%%", markets_html(MKT, df))
+            .replace("%%EXTRA%%", extra_html())
             .replace("%%NSERIES%%", n(S["summary"]["n_series"], 0) if S else "kilkaset")
             .replace("%%REGULARITY%%", reg_tiles)
             .replace("%%REGVERDICT%%", reg_verdict)

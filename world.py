@@ -1,6 +1,7 @@
 """Szeroki zbiór szeregów ze świata (rynki, towary, waluty, uwaga polityczna, pogoda, Słońce, ziemia, księżyc)
 do skanera zależności. Wszystko darmowe i bez kluczy. Awaria pojedynczego szeregu jest pomijana."""
 import io
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -9,9 +10,11 @@ import pandas as pd
 import requests
 
 import config as C
+import extra as XT
 import markets as MK
 
 WORLD_CSV = C.DATA_DIR / "world.csv"
+FAILS = C.DATA_DIR / "world_fails.json"
 UA = {"User-Agent": "btc-predictor/1.0 (research; wywigacz@users.noreply.github.com)"}
 
 # nazwa -> (symbol Yahoo, etykieta)
@@ -64,6 +67,10 @@ YAHOO = {
     "c_link": ("LINK-USD", "Chainlink"), "c_dot": ("DOT-USD", "Polkadot"), "c_xmr": ("XMR-USD", "Monero"), "c_bch": ("BCH-USD", "Bitcoin Cash"),
     # spółki powiązane z krypto
     "coin": ("COIN", "Coinbase"), "mstr": ("MSTR", "Strategy (MSTR)"), "mara": ("MARA", "Marathon (górnik)"), "riot": ("RIOT", "Riot (górnik)"),
+    "clsk": ("CLSK", "CleanSpark (górnik)"), "hut": ("HUT", "Hut 8 (górnik)"), "cifr": ("CIFR", "Cipher (górnik)"), "iren": ("IREN", "IREN (górnik)"),
+    "wulf": ("WULF", "TeraWulf (górnik)"), "xyz": ("XYZ", "Block (dawniej Square)"),
+    # energia: koszt prądu dla górników i presja inflacyjna
+    "ttf": ("TTF=F", "Gaz w Europie (TTF)"), "coal": ("MTF=F", "Węgiel (Rotterdam)"), "gasoline": ("RB=F", "Benzyna (USA)"), "heatoil": ("HO=F", "Olej opałowy (USA)"),
 }
 # nazwa -> (artykuł Wikipedii EN, etykieta)
 WIKI = {
@@ -77,6 +84,36 @@ WIKI = {
     "earthquake": ("Earthquake", "Uwaga: trzęsienia ziemi"), "war": ("War", "Uwaga: wojna"), "sanctions": ("International_sanctions", "Uwaga: sankcje"),
     "ai": ("Artificial_intelligence", "Uwaga: sztuczna inteligencja"), "nft": ("Non-fungible_token", "Uwaga: NFT"), "scam": ("Ponzi_scheme", "Uwaga: piramidy finansowe"),
     "unemployment": ("Unemployment", "Uwaga: bezrobocie"), "debt": ("National_debt_of_the_United_States", "Uwaga: dług USA"),
+    # ludzie i instytucje
+    "powell": ("Jerome_Powell", "Uwaga: Jerome Powell (Fed)"), "yellen": ("Janet_Yellen", "Uwaga: Janet Yellen"), "saylor": ("Michael_Saylor", "Uwaga: Michael Saylor"),
+    "sbf": ("Sam_Bankman-Fried", "Uwaga: Sam Bankman-Fried"), "cz": ("Changpeng_Zhao", "Uwaga: Changpeng Zhao (Binance)"), "satoshi": ("Satoshi_Nakamoto", "Uwaga: Satoshi Nakamoto"),
+    "buterin": ("Vitalik_Buterin", "Uwaga: Vitalik Buterin"), "gensler": ("Gary_Gensler", "Uwaga: Gary Gensler (SEC)"), "xi": ("Xi_Jinping", "Uwaga: Xi Jinping"),
+    "putin": ("Vladimir_Putin", "Uwaga: Władimir Putin"), "bukele": ("Nayib_Bukele", "Uwaga: Nayib Bukele (Salwador)"), "milei": ("Javier_Milei", "Uwaga: Javier Milei"),
+    "blackrock": ("BlackRock", "Uwaga: BlackRock"), "binance": ("Binance", "Uwaga: Binance"), "coinbase_w": ("Coinbase", "Uwaga: Coinbase"), "tether_w": ("Tether_(cryptocurrency)", "Uwaga: Tether"),
+    "sec": ("U.S._Securities_and_Exchange_Commission", "Uwaga: SEC"), "imf": ("International_Monetary_Fund", "Uwaga: MFW"), "ecb": ("European_Central_Bank", "Uwaga: EBC"),
+    "nvidia": ("Nvidia", "Uwaga: Nvidia"), "openai": ("OpenAI", "Uwaga: OpenAI"), "chatgpt": ("ChatGPT", "Uwaga: ChatGPT"), "tesla": ("Tesla,_Inc.", "Uwaga: Tesla"),
+    # pojęcia finansowe i bańki
+    "bubble": ("Economic_bubble", "Uwaga: bańki spekulacyjne"), "tulip": ("Tulip_mania", "Uwaga: tulipomania"), "dotcom": ("Dot-com_bubble", "Uwaga: bańka internetowa"),
+    "gfc": ("2008_financial_crisis", "Uwaga: kryzys 2008"), "depression": ("Great_Depression", "Uwaga: Wielki Kryzys"), "hyperinf": ("Hyperinflation", "Uwaga: hiperinflacja"),
+    "stagflation": ("Stagflation", "Uwaga: stagflacja"), "qe": ("Quantitative_easing", "Uwaga: luzowanie ilościowe"), "goldstd": ("Gold_standard", "Uwaga: standard złota"),
+    "cbdc": ("Central_bank_digital_currency", "Uwaga: cyfrowe waluty banków centralnych"), "stablecoin": ("Stablecoin", "Uwaga: stablecoiny"),
+    "halving": ("Bitcoin_halving", "Uwaga: halving"), "blockchain": ("Blockchain", "Uwaga: blockchain"), "defi": ("Decentralized_finance", "Uwaga: DeFi"),
+    "mining": ("Cryptocurrency_mining", "Uwaga: kopanie krypto"), "etf": ("Exchange-traded_fund", "Uwaga: fundusze ETF"), "shortsq": ("Short_squeeze", "Uwaga: short squeeze"),
+    "gamestop": ("GameStop_short_squeeze", "Uwaga: GameStop"), "ftx": ("FTX", "Uwaga: FTX"), "mtgox": ("Mt._Gox", "Uwaga: Mt. Gox"), "silk": ("Silk_Road_(marketplace)", "Uwaga: Silk Road"),
+    "ransomware": ("Ransomware", "Uwaga: ransomware"), "hack": ("Security_hacker", "Uwaga: hakerzy"),
+    # technologie, które mogą zagrozić lub pomóc BTC
+    "quantum": ("Quantum_computing", "Uwaga: komputery kwantowe"), "metaverse": ("Metaverse", "Uwaga: metawersum"), "web3": ("Web3", "Uwaga: Web3"),
+    # świat, klimat, katastrofy
+    "climate": ("Climate_change", "Uwaga: zmiany klimatu"), "elnino": ("El_Niño–Southern_Oscillation", "Uwaga: El Niño"), "wildfire": ("Wildfire", "Uwaga: pożary"),
+    "flood": ("Flood", "Uwaga: powodzie"), "drought": ("Drought", "Uwaga: susze"), "pandemic": ("Pandemic", "Uwaga: pandemie"), "nuclear": ("Nuclear_weapon", "Uwaga: broń jądrowa"),
+    "ww3": ("World_War_III", "Uwaga: III wojna światowa"), "brexit": ("Brexit", "Uwaga: Brexit"), "venezuela": ("Venezuela", "Uwaga: Wenezuela"),
+    "argentina": ("Argentina", "Uwaga: Argentyna"), "turkey": ("Turkey", "Uwaga: Turcja"), "nkorea": ("North_Korea", "Uwaga: Korea Północna"),
+    "elsalvador": ("El_Salvador", "Uwaga: Salwador"), "india": ("India", "Uwaga: Indie"), "japan": ("Japan", "Uwaga: Japonia"),
+    "solar": ("Solar_flare", "Uwaga: rozbłyski słoneczne"), "eclipse": ("Solar_eclipse", "Uwaga: zaćmienia Słońca"), "ufo": ("Unidentified_flying_object", "Uwaga: UFO"),
+    "astrology": ("Astrology", "Uwaga: astrologia"), "mercury_r": ("Apparent_retrograde_motion", "Uwaga: retrogradacja Merkurego"),
+    "worldcup": ("FIFA_World_Cup", "Uwaga: mundial"), "olympics": ("Olympic_Games", "Uwaga: igrzyska"), "superbowl": ("Super_Bowl", "Uwaga: Super Bowl"),
+    "lottery": ("Lottery", "Uwaga: loterie"), "casino": ("Casino", "Uwaga: kasyna"), "poverty": ("Poverty", "Uwaga: ubóstwo"),
+    "layoff": ("Layoff", "Uwaga: zwolnienia"), "housing": ("Real_estate_bubble", "Uwaga: bańka na nieruchomościach"), "bankrupt": ("Bankruptcy", "Uwaga: bankructwa"),
 }
 # nazwa -> (szer., dł., etykieta) regiony związane z kopaniem i popytem na energię
 WEATHER = {
@@ -92,7 +129,11 @@ LABELS.update({"sunspots": "Plamy słoneczne", "quakes": "Trzęsienia ziemi M6+ 
                "season_sin": "Sezonowość roczna (sin)", "season_cos": "Sezonowość roczna (cos)"})
 LABELS.update({f"dow_{i}": f"Dzień tygodnia: {d}" for i, d in enumerate(["pon", "wt", "śr", "czw", "pt", "sob", "niedz"])})
 LABELS.update({"cal_monthend": "Kalendarz: koniec miesiąca", "cal_quarterend": "Kalendarz: koniec kwartału", "cal_lunarny": "Kalendarz: chiński Nowy Rok (±7 dni)",
-               "cal_taxday": "Kalendarz: amerykański dzień podatkowy", "cal_xmas": "Kalendarz: okres świąteczny"})
+               "cal_taxday": "Kalendarz: amerykański dzień podatkowy", "cal_xmas": "Kalendarz: okres świąteczny",
+               "cal_mercury": "Dzika karta: retrogradacja Merkurego", "cal_fri13": "Dzika karta: piątek 13.", "cal_goldenweek": "Kalendarz: chiński Złoty Tydzień",
+               "cal_thanksgiving": "Kalendarz: Święto Dziękczynienia (USA)", "cal_ramadan": "Kalendarz: ramadan", "cal_sport": "Dzika karta: mundial, igrzyska, Super Bowl",
+               "cal_dst": "Kalendarz: zmiana czasu w USA"})
+LABELS.update({k: v[0] for k, v in XT.KIND.items()})
 DSER = {  # szeregi z tabeli dziennej BTC dorzucane do skanera: (etykieta, rodzaj)
     "d_ntx": ("Sieć BTC: liczba transakcji", "attn"), "d_fees": ("Sieć BTC: opłaty transakcyjne (USD)", "attn"), "d_mempool": ("Sieć BTC: kolejka transakcji (mempool)", "attn"),
     "d_txvol": ("Sieć BTC: wartość przesyłana w sieci", "attn"), "d_uaddr": ("Sieć BTC: unikalne adresy", "attn"), "d_difficulty": ("Sieć BTC: trudność kopania", "attn"),
@@ -222,9 +263,12 @@ def fetch_world(since=None):
 
 def update_world(full=False):
     old = pd.read_csv(WORLD_CSV, index_col=0, parse_dates=True) if WORLD_CSV.exists() else pd.DataFrame()
-    missing = [f"y_{k}" for k in YAHOO if f"y_{k}" not in old.columns]       # nowy szereg: pobierz całą historię
+    tried = set(json.loads(FAILS.read_text())) if FAILS.exists() else set()   # szeregi, których źródło nie ma: nie ponawiamy pełnego pobierania w kółko
+    missing = [c for c in [f"y_{k}" for k in YAHOO] + [f"wk_{k}" for k in WIKI] if c not in old.columns and c.split("_", 1)[1] not in tried]
     since = None if (full or old.empty or missing) else old.index.max() - pd.Timedelta(days=30)
     data, fails = fetch_world(since)
+    if since is None:
+        FAILS.write_text(json.dumps(sorted(fails)))
     new = pd.DataFrame(data)
     merged = new.combine_first(old) if len(old) else new
     merged = merged.sort_index().loc["2011-08-01":]
@@ -251,7 +295,58 @@ def static_series(index):
     d["cal_lunarny"] = np.array([float(any(-7 <= (t - x).days <= 7 for x in lny)) for t in index])
     d["cal_taxday"] = ((index.month == 4) & (index.day >= 8) & (index.day <= 18)).astype(float)
     d["cal_xmas"] = (((index.month == 12) & (index.day >= 20)) | ((index.month == 1) & (index.day <= 3))).astype(float)
+    # „dzikie karty”: rzeczy zapewne bez związku, ale ludzie w nie wierzą lub zmieniają wtedy zachowanie; sprawdzamy, żeby to wykluczyć albo zauważyć
+    d["cal_mercury"] = mercury_retrograde(index)
+    d["cal_fri13"] = ((index.day == 13) & (index.dayofweek == 4)).astype(float)
+    d["cal_goldenweek"] = ((index.month == 10) & (index.day <= 7)).astype(float)                  # chiński Złoty Tydzień
+    thx = {y: pd.Timestamp(f"{y}-11-01") + pd.offsets.Week(weekday=3) * 4 - pd.Timedelta(days=7 if pd.Timestamp(f"{y}-11-01").dayofweek == 3 else 0)
+           for y in range(index.year.min(), index.year.max() + 1)}
+    d["cal_thanksgiving"] = np.array([float(0 <= (t - thx[t.year]).days <= 4) for t in index])
+    d["cal_ramadan"] = _in_windows(index, RAMADAN, 29)
+    d["cal_sport"] = np.maximum(_in_ranges(index, WORLDCUP + OLYMPICS), _in_windows(index, SUPERBOWL, 1, before=3))
+    dst = []
+    for y in range(index.year.min(), index.year.max() + 1):                                          # zmiana czasu w USA (2. niedziela marca, 1. niedziela listopada)
+        dst += [pd.Timestamp(f"{y}-03-01") + pd.offsets.Week(weekday=6) * 2 - pd.Timedelta(days=7 if pd.Timestamp(f"{y}-03-01").dayofweek == 6 else 0),
+                pd.Timestamp(f"{y}-11-01") + pd.offsets.Week(weekday=6) - pd.Timedelta(days=7 if pd.Timestamp(f"{y}-11-01").dayofweek == 6 else 0)]
+    d["cal_dst"] = _in_windows(index, dst, 2)
     return d
+
+
+RAMADAN = ["2012-07-20", "2013-07-09", "2014-06-28", "2015-06-18", "2016-06-06", "2017-05-27", "2018-05-16", "2019-05-06", "2020-04-24",
+           "2021-04-13", "2022-04-02", "2023-03-23", "2024-03-11", "2025-03-01", "2026-02-18", "2027-02-08"]
+SUPERBOWL = ["2012-02-05", "2013-02-03", "2014-02-02", "2015-02-01", "2016-02-07", "2017-02-05", "2018-02-04", "2019-02-03", "2020-02-02",
+             "2021-02-07", "2022-02-13", "2023-02-12", "2024-02-11", "2025-02-09", "2026-02-08", "2027-02-14"]
+WORLDCUP = [("2014-06-12", "2014-07-13"), ("2018-06-14", "2018-07-15"), ("2022-11-20", "2022-12-18"), ("2026-06-11", "2026-07-19")]
+OLYMPICS = [("2012-07-27", "2012-08-12"), ("2016-08-05", "2016-08-21"), ("2021-07-23", "2021-08-08"), ("2024-07-26", "2024-08-11"),
+            ("2014-02-07", "2014-02-23"), ("2018-02-09", "2018-02-25"), ("2022-02-04", "2022-02-20"), ("2026-02-06", "2026-02-22")]
+
+
+def _in_windows(index, starts, days, before=0):
+    st = pd.to_datetime(pd.Index(starts))
+    return np.array([float(any(-before <= (t - s).days < days for s in st)) for t in index])
+
+
+def _in_ranges(index, ranges):
+    return np.array([float(any(pd.Timestamp(a) <= t <= pd.Timestamp(b) for a, b in ranges)) for t in index])
+
+
+def mercury_retrograde(index):
+    """Pozorny ruch wsteczny Merkurego widziany z Ziemi: liczony z orbit Keplera (elementy J2000, dokładność ~1 dnia)."""
+    def helio(t, a, e, i, L, w, O):
+        M = np.radians((L - w) % 360)
+        E = M.copy()
+        for _ in range(8):
+            E = E - (E - e * np.sin(E) - M) / (1 - e * np.cos(E))
+        x, y = a * (np.cos(E) - e), a * np.sqrt(1 - e * e) * np.sin(E)
+        wp, Op, ip = np.radians(w - O), np.radians(O), np.radians(i)
+        X = (np.cos(wp) * np.cos(Op) - np.sin(wp) * np.sin(Op) * np.cos(ip)) * x + (-np.sin(wp) * np.cos(Op) - np.cos(wp) * np.sin(Op) * np.cos(ip)) * y
+        Y = (np.cos(wp) * np.sin(Op) + np.sin(wp) * np.cos(Op) * np.cos(ip)) * x + (-np.sin(wp) * np.sin(Op) + np.cos(wp) * np.cos(Op) * np.cos(ip)) * y
+        return X, Y
+    T = ((index - pd.Timestamp("2000-01-01 12:00")).days.to_numpy(float) + 0.5) / 36525
+    mx, my = helio(T, 0.38709927, 0.20563593, 7.00497902, 252.25032350 + 149472.67411175 * T, 77.45779628 + 0.16047689 * T, 48.33076593 - 0.12534081 * T)
+    ex, ey = helio(T, 1.00000261, 0.01671123, -0.00001531, 100.46457166 + 35999.37244981 * T, 102.93768193 + 0.32327364 * T, 0.0)
+    lon = np.unwrap(np.arctan2(my - ey, mx - ex))
+    return (np.gradient(lon) < 0).astype(float)
 
 
 def transforms(raw, index):
@@ -274,10 +369,19 @@ def transforms(raw, index):
             raw = raw.join(mf.rename(columns=lambda c: f"mk_{c}"), how="outer")
     except Exception:
         pass
+    try:                                                   # płynność, CFTC, DeFi, Lightning, Hacker News, pogoda kosmiczna
+        if XT.OUT.exists():
+            raw = raw.join(pd.read_csv(XT.OUT, index_col=0, parse_dates=True), how="outer")
+    except Exception:
+        pass
     raw = raw.reindex(index.union(raw.index)).sort_index()
     for c in raw.columns:
         s = raw[c]
-        kind = DSER.get(c, (None, None))[1]
+        kind = DSER.get(c, XT.KIND.get(c, (None, None)))[1]
+        if kind == "chg":
+            ls = np.log(s.where(s > 0).ffill(limit=10).reindex(index))
+            F[f"{c}|r7"], F[f"{c}|r30"] = ls.diff(7), ls.diff(30)
+            continue
         if kind == "attn":
             s = s.where(s > 0).ffill(limit=5).reindex(index)
             ls = np.log(s)

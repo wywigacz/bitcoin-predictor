@@ -17,7 +17,8 @@ Wymaga: pandas, numpy, scipy, scikit-learn, requests (`pip install -r requiremen
 | Moduł | Zadanie |
 |---|---|
 | `sources.py` | cena, on-chain (MVRV), górnicy, nastroje, makro, stablecoiny, funding, Deribit (DVOL, put/call), CFTC, Upbit (kimchi), Wikipedia w 11 językach |
-| `world.py` | ~120 szeregów ze świata: giełdy i waluty 20+ krajów, towary, uwaga na Wikipedii (polityka, kryzysy), pogoda w regionach kopania, plamy słoneczne, trzęsienia ziemi, księżyc |
+| `world.py` | ~250 szeregów ze świata: giełdy i waluty 20+ krajów, towary i energia (gaz TTF, węgiel, benzyna), spółki wydobywcze BTC, uwaga na Wikipedii (~130 haseł: ludzie, instytucje, bańki, klimat, technologie), pogoda w regionach kopania, plamy słoneczne, trzęsienia ziemi, księżyc, kalendarz i „dzikie karty” (retrogradacja Merkurego liczona z orbit Keplera, piątek 13., mundial/igrzyska/Super Bowl, ramadan, Złoty Tydzień, Święto Dziękczynienia, zmiana czasu) |
+| `extra.py` | płynność dolara (NY Fed: reverse repo, SOFR, EFFR, SOMA; Skarb USA: TGA; płynność netto), pozycje funduszy w CFTC na S&P, Nasdaq, 10-latkach, jenie, euro, VIX, złocie i ropie, DefiLlama (TVL, DEX, USDT, USDC), Lightning (mempool.space), CoinMetrics (BTC na giełdach, napływy), pogoda kosmiczna GFZ (Kp, Ap, F10.7), Hacker News (miesięczne wzmianki, przesunięte o miesiąc, by nie podglądać przyszłości) |
 | `events.py`, `events_data.py` | baza wydarzeń: ręczne, kalendarz (FOMC, opcje), włamania (DefiLlama), automatycznie wykrywane szoki rynkowe; atrybucja ruchów i event study |
 | `worldlog.py` | dziennik świata: co działo się każdego dnia od 2011 (Wikipedia Current events), podział na kategorie i ~20 grup słów kluczowych (wojna, banki, sankcje, wybory, klęski, krypto...) -> szeregi dla skanera |
 | `news.py` | nagłówki prasowe o Bitcoinie z dni dużych ruchów (GDELT, z pamięcią podręczną i cierpliwym tempem zapytań) |

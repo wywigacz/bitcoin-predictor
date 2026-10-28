@@ -17,6 +17,7 @@ import pandas as pd
 import config as C
 import ensemble
 import events
+import extra as xt
 import model
 import markets
 import news
@@ -68,6 +69,11 @@ def update(full=False):
         MKT = {"comove": markets.comove(df, px, sp), "analogs": markets.corr_analogs(df, px), "feat": mf}
     except Exception as e:
         print("  [uwaga] rynki:", str(e)[:150])
+    print("Płynność dolara, pozycje CFTC, DeFi, Lightning, Hacker News, pogoda kosmiczna ...")
+    try:
+        xt.update()
+    except Exception as e:
+        print("  [uwaga] dodatkowe sygnały:", str(e)[:120])
     print("Dane ze świata (rynki, uwaga, pogoda, Słońce) ...")
     try:
         raw_w, fails = world.update_world(full=full or not world.WORLD_CSV.exists())
