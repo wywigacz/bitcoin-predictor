@@ -110,14 +110,14 @@ def regime(c):
     if c is None or np.isnan(c):
         return "brak danych"
     if c >= 0.45:
-        return "silna strefa akumulacji (historycznie okolice dna)"
+        return "Bardzo tanio w porównaniu z historią (podobnie jak przy dawnych dołkach cen)"
     if c >= 0.15:
-        return "umiarkowanie tanio / wczesna faza odbicia"
+        return "Raczej tanio w porównaniu z historią"
     if c > -0.15:
-        return "neutralnie"
+        return "Cena jest mniej więcej „normalna”"
     if c > -0.45:
-        return "umiarkowanie drogo / rosnące ryzyko"
-    return "strefa przegrzania (historycznie okolice szczytu)"
+        return "Raczej drogo w porównaniu z historią"
+    return "Bardzo drogo (podobnie jak przy dawnych szczytach cen)"
 
 
 def ewma_vol(c):
