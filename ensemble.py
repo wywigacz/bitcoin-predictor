@@ -448,7 +448,7 @@ def run(df, ev, f, sc, comp, reg=None, world_T=None):
     Xraw, Z = build_features(df, f, sc, comp, ev, sig, p_hi, e_mu, pl, reg)
     Wz = None
     if world_T is not None:
-        keep = [c for c in world_T.columns if not c.endswith("|s")]
+        keep = [c for c in world_T.columns if not c.endswith("|s") and not c.startswith("s_")]
         Wz = pd.DataFrame({c: _expz(world_T[c], 365) for c in keep}, index=df.index).clip(-4, 4)
     knn_cols = ["comp", "mom90", "volpct", "powerlaw", "hmm_hi", "cycle"]
     res = {"vol": vinfo, "horizons": {}, "forecasts": []}

@@ -49,6 +49,8 @@ def _bh(p, q=0.10):
 def label(col):
     base, _, tr = col.partition("|")
     nm = W.LABELS.get(base, base)
+    if tr in ("d7", "dev"):
+        return f"{nm} ({'zmiana 7 dni' if tr == 'd7' else 'odchylenie od średniej rocznej'})"
     if base.startswith("we_"):
         desc = {"a7": "natężenie 7 dni vs 90 dni", "a30": "natężenie 30 dni vs rok"}.get(tr, tr)
     else:
@@ -101,6 +103,8 @@ def run_scan(df, T):
         y = (lr.shift(-h) - lr).to_numpy(float)
         for lag in LAGS:
             for col in T.columns:
+                if col.startswith("s_") and (lag != 0 or h != 30):      # ~500 spółek: tylko jeden wariant, żeby nie mnożyć testów
+                    continue
                 x = T[col].shift(lag).to_numpy(float)
                 r, m = _corr(x, y)
                 if not np.isfinite(r):
@@ -124,7 +128,7 @@ def run_scan(df, T):
     # współruch tygodniowy z BTC (opis, nie predykcja): zwroty 7d, próbkowanie co 7 dni
     co = []
     btc7 = lr.diff(7).to_numpy(float)
-    for col in [c for c in T.columns if c.endswith("|r7")]:
+    for col in [c for c in T.columns if c.endswith("|r7") and not c.startswith(("m_", "mk_"))]:
         x = T[col].to_numpy(float)
         sl = slice(7, None, 7)
         r, m = _corr(x[sl], btc7[sl])

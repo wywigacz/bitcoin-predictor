@@ -9,6 +9,7 @@ import pandas as pd
 import requests
 
 import config as C
+import markets as MK
 
 WORLD_CSV = C.DATA_DIR / "world.csv"
 UA = {"User-Agent": "btc-predictor/1.0 (research; wywigacz@users.noreply.github.com)"}
@@ -75,6 +76,14 @@ WL = {"n_total": "wszystkie wydarzenia", "c_armed": "konflikty zbrojne i ataki",
       "k_energy": "energia i surowce", "k_tech": "technologie i big tech", "k_crypto": "kryptowaluty", "k_china": "Chiny", "k_ukraine": "Rosja i Ukraina",
       "k_mideast": "Bliski Wschód", "k_usa": "USA", "k_europe": "Europa"}
 LABELS.update({f"we_{k}": f"Świat: {v}" for k, v in WL.items()})
+LABELS.update({f"m_{k}": f"{v} (fundusz)" for k, v in MK.ETF.items()})
+LABELS.update({f"mk_ratio_{k}": v[2] for k, v in MK.RATIOS.items()})
+LABELS.update({f"mk_{k}": v for k, v in MK.LEVELS.items()})
+try:
+    _sp = pd.read_csv(MK.SP500)
+    LABELS.update({f"s_{a}": f"{b} (akcja)" for a, b in zip(_sp["Symbol"], _sp["Security"])})
+except Exception:
+    pass
 ATTN = {f"wk_{k}" for k in WIKI} | {"quakes", "sunspots"} | {f"we_{k}" for k in WL}
 WX = {f"wx_{k}_t" for k in WEATHER} | {f"wx_{k}_p" for k in WEATHER}
 STATIC = {"moon_sin", "moon_cos", "season_sin", "season_cos"} | {f"dow_{i}" for i in range(7)}
@@ -204,13 +213,33 @@ def transforms(raw, index):
         raw = raw.join(wl[[c for c in WL if c in wl.columns]].rename(columns=lambda c: f"we_{c}"), how="outer")
     except Exception:
         pass
+    try:                                                   # akcje S&P 500, fundusze ETF i miary rynku
+        px = MK.load()
+        if px is not None:
+            sp = set(pd.read_csv(MK.SP500)["Symbol"]) if MK.SP500.exists() else set()
+            ren = {c: (f"s_{c}" if c in sp else f"m_{c}") for c in px.columns}
+            raw = raw.join(px.rename(columns=ren), how="outer")
+        if MK.FEAT.exists():
+            mf = pd.read_csv(MK.FEAT, index_col=0, parse_dates=True)
+            raw = raw.join(mf.rename(columns=lambda c: f"mk_{c}"), how="outer")
+    except Exception:
+        pass
     raw = raw.reindex(index.union(raw.index)).sort_index()
     for c in raw.columns:
         s = raw[c]
-        if c.startswith("y_"):
+        if c.startswith(("y_", "m_", "mk_ratio_")):
             s = s.where(s > 0).ffill(limit=5).reindex(index)
             ls = np.log(s)
-            F[f"{c}|r1"], F[f"{c}|r7"], F[f"{c}|r30"] = ls.diff(1), ls.diff(7), ls.diff(30)
+            if not c.startswith("mk_"):
+                F[f"{c}|r1"] = ls.diff(1)
+            F[f"{c}|r7"], F[f"{c}|r30"] = ls.diff(7), ls.diff(30)
+        elif c.startswith("s_"):
+            s = s.where(s > 0).ffill(limit=5).reindex(index)
+            F[f"{c}|r30"] = np.log(s).diff(30)
+        elif c.startswith("mk_"):
+            s = s.ffill(limit=5).reindex(index)
+            F[f"{c}|d7"] = s - s.shift(7)
+            F[f"{c}|dev"] = s - s.rolling(365, min_periods=200).mean()
         elif c in ATTN:
             s = s.reindex(index)
             if c == "sunspots":

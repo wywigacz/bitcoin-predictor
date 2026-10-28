@@ -17,6 +17,7 @@ import config as C
 import ensemble
 import events
 import model
+import markets
 import news
 import regularity
 import report
@@ -57,6 +58,15 @@ def update(full=False):
             news.update_news(df, budget_s=1800 if full else 120)
     except Exception as e:
         print("  [uwaga] nagłówki GDELT:", str(e)[:120])
+    print("Akcje i obligacje (S&P 500 + fundusze) ...")
+    MKT = None
+    try:
+        px, sp = markets.update()
+        mf = markets.features(px, sp)
+        mf.to_csv(markets.FEAT, float_format="%.6g")
+        MKT = {"comove": markets.comove(df, px, sp), "analogs": markets.corr_analogs(df, px), "feat": mf}
+    except Exception as e:
+        print("  [uwaga] rynki:", str(e)[:150])
     print("Dane ze świata (rynki, uwaga, pogoda, Słońce) ...")
     try:
         raw_w, fails = world.update_world(full=full or not world.WORLD_CSV.exists())
@@ -92,7 +102,7 @@ def update(full=False):
     slim["regularity"] = {k: v for k, v in Rg.items() if k not in ("rolling", "kalman")}
     slim["regularity"]["kalman"] = {k: v for k, v in Rg["kalman"].items() if k != "series"}
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
-    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg)
+    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT)
     print_summary(res)
     return res
 

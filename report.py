@@ -751,7 +751,79 @@ def plan_data(df):
     return {"m": [d.strftime("%Y-%m") for d in m.index], "p": [round(float(v), 2) for v in m.values]}
 
 
-def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None):
+
+def _bars(rows, scale=0.6):
+    out = ""
+    for name, r in rows:
+        w = min(abs(r), scale) / scale * 50
+        out += (f'<div class="sig sm-row"><div class="sig-l"><b>{html.escape(str(name))}</b></div><div class="dv"><i class="mid"></i>'
+                f'<span class="{"g" if r >= 0 else "r"}" style="left:{50 if r >= 0 else 50 - w:.1f}%;width:{w:.1f}%"></span></div>'
+                f'<div class="sig-v"><b>{r:+.2f}</b></div></div>')
+    return out
+
+
+def markets_html(M, df):
+    if not M:
+        return '<div class="card empty"><b>Brak danych z rynków akcji i obligacji</b><p class="muted">Pojawią się przy następnej aktualizacji.</p></div>'
+    f = M["feat"]
+
+    def lastp(col):
+        s = f[col].dropna() if col in f else pd.Series(dtype=float)
+        return (float(s.iloc[-1]), float((s < s.iloc[-1]).mean())) if len(s) else (None, None)
+    tiles = []
+    v, p = lastp("breadth200")
+    if v is not None:
+        tiles.append(("Ile spółek z S&P 500 jest w trendzie wzrostowym?", f"{v:.0f}%", p, "Tyle spółek ma cenę powyżej swojej średniej z 200 dni. Powyżej 60% to szeroka hossa, poniżej 30% szeroka przecena."))
+    v, p = lastp("avgcorr")
+    if v is not None:
+        tiles.append(("Czy akcje poruszają się „stadnie”?", f"{v:.2f}".replace(".", ","), p, "Średnia korelacja spółek z ostatnich 60 dni. Wysoka (powyżej 0,4) bywa w panice, gdy wszyscy sprzedają naraz."))
+    if "tnx" in df and "irx" in df and df["tnx"].notna().any():
+        cv = float(df["tnx"].dropna().iloc[-1] - df["irx"].dropna().iloc[-1])
+        sc = (df["tnx"] - df["irx"]).dropna()
+        tiles.append(("Krzywa rentowności USA (10 lat minus 3 miesiące)", f"{cv:+.2f}".replace(".", ",") + " p.p.", float((sc < cv).mean()),
+                      "Ujemna, czyli „odwrócona” krzywa, historycznie poprzedzała recesje. Dodatnia jest normalna."))
+    if "ratio_credit" in f:
+        s = f["ratio_credit"].dropna()
+        ch = float((s.iloc[-1] / s.iloc[-22] - 1) * 100)
+        tiles.append(("Apetyt na ryzyko w obligacjach (miesiąc)", f"{ch:+.1f}%".replace(".", ","), float(((s / s.shift(21) - 1) * 100 < ch).mean()),
+                      "Jak zmieniły się obligacje śmieciowe względem bezpiecznych skarbowych. Spadek oznacza ucieczkę od ryzyka."))
+    v, p = lastp("updown")
+    if v is not None:
+        tiles.append(("Ile spółek wzrosło w ostatnim tygodniu?", f"{v:.0f}%", p, "Odsetek spółek z S&P 500, które są wyżej niż tydzień temu."))
+    v, p = lastp("dispersion")
+    if v is not None:
+        tiles.append(("Jak bardzo różnią się wyniki spółek?", f"{v*100:.1f}%".replace(".", ","), p, "Rozrzut miesięcznych zwrotów między spółkami. Wysoki oznacza, że rynek mocno wybiera zwycięzców i przegranych."))
+    tl = "".join(f'<div class="card tile"><span class="muted sm">{a}</span><b>{b}</b>{_pctbar(c)}<span class="muted sm">{d}</span></div>' for a, b, c, d in tiles)
+    cm = M["comove"]
+    top = _bars([(r.name or r.sym, r.r) for r in cm["top"].itertuples()])
+    bot = _bars([(r.name or r.sym, r.r) for r in cm["bottom"].itertuples()])
+    sec = _bars([(k, v) for k, v in cm["sectors"].items()], scale=0.4)
+    bnd = _bars([(r.name or r.sym, r.r) for r in cm["bonds"].itertuples()], scale=0.4)
+    secs = {"Information Technology": "Technologia", "Financials": "Finanse", "Consumer Discretionary": "Dobra luksusowe", "Communication Services": "Komunikacja",
+            "Industrials": "Przemysł", "Materials": "Surowce", "Energy": "Energetyka", "Real Estate": "Nieruchomości", "Health Care": "Ochrona zdrowia",
+            "Consumer Staples": "Dobra podstawowe", "Utilities": "Użyteczność publiczna"}
+    for en, pl_ in secs.items():
+        sec = sec.replace(f"<b>{en}</b>", f"<b>{pl_}</b>")
+    A = M.get("analogs")
+    an = ""
+    if A and A.get("rows"):
+        rows = "".join(f'<tr><td>{r["date"]}</td><td class="{"pos" if r["f30"] >= 0 else "neg"}">{r["f30"]:+.0f}%</td><td class="{"pos" if r["f90"] >= 0 else "neg"}">{r["f90"]:+.0f}%</td></tr>' for r in A["rows"])
+        now = A["now"]
+        nows = ", ".join(f'{n_} {now[k]:+.2f}'.replace(".", ",") for k, n_ in (("QQQ", "Nasdaq"), ("TLT", "długie obligacje"), ("GLD", "złoto"), ("UUP", "dolar")) if k in now)
+        an = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Kiedy powiązania Bitcoina z rynkami wyglądały jak dziś?</h3>'
+              f'<p class="muted sm" style="margin:0 0 10px">Dla każdego dnia liczymy, jak mocno Bitcoin poruszał się razem z {A["n_keys"]} kluczowymi rynkami (akcje, obligacje, złoto, dolar, surowce, kraje) w ostatnich 90 dniach. '
+              f'Dziś na przykład: {nows}. Szukamy okresów z najbardziej podobnym układem tych powiązań (to „analogia analogii”) i patrzymy, co działo się potem. To ciekawostka, nie prognoza.</p>'
+              f'<table class="tbl"><tr><th>Okres</th><th>Cena po 30 dniach</th><th>Cena po 90 dniach</th></tr>{rows}</table>'
+              f'<p class="muted sm" style="margin:10px 0 0">W {A["up30"]*100:.0f}% tych okresów cena po 30 dniach była wyższa; typowo {A["med30"]:+.0f}% po 30 i {A["med90"]:+.0f}% po 90 dniach.</p></div>')
+    return (f'<div class="tiles3">{tl}</div>'
+            f'<div class="two2" style="margin-top:18px"><div class="panel"><h3 class="ct">Najbardziej podobne do Bitcoina (ostatnie 2 lata, tygodniowo)</h3>'
+            f'<p class="muted sm" style="margin:0 0 8px">Spośród {cm["n"]} spółek i funduszy. 1 = zawsze razem, 0 = niezależnie.</p>{top}'
+            f'<h3 class="ct" style="margin-top:18px">Najbardziej „w przeciwną stronę”</h3>{bot}</div>'
+            f'<div class="panel"><h3 class="ct">Sektory giełdy USA</h3><p class="muted sm" style="margin:0 0 8px">Średnie powiązanie spółek z sektora z Bitcoinem.</p>{sec}'
+            f'<h3 class="ct" style="margin-top:18px">Obligacje</h3><p class="muted sm" style="margin:0 0 8px">Ujemne: gdy obligacje drożeją (ucieczka do bezpieczeństwa), Bitcoin zwykle tanieje.</p>{bnd}</div></div>{an}')
+
+
+def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None):
     fr = res["frame"]
     reg_tiles, reg_verdict = regularity_html(Rg)
     scan_head, scan_body = scan_html(S)
@@ -817,6 +889,7 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None):
             .replace("%%STUDY%%", study_html(E))
             .replace("%%UPCOMING%%", upcoming_html(E))
             .replace("%%REGTILES%%", reg2_tiles)
+            .replace("%%MARKETS%%", markets_html(MKT, df))
             .replace("%%REGULARITY%%", reg_tiles)
             .replace("%%REGVERDICT%%", reg_verdict)
             .replace("%%SCANHEAD%%", scan_head)
