@@ -13,10 +13,15 @@ import sys
 import pandas as pd
 
 import config as C
+import ensemble
+import events
 import model
+import regularity
 import report
+import scan
 import sources
 import store
+import world
 
 TASK = "BTC-Predictor"
 
@@ -33,7 +38,29 @@ def update(full=False):
     raw = store.merge_save(old, fetched)
     df = model.build_frame(raw)
 
-    res = model.analyze(df)
+    res = model.analyze(df)                      # sygnały, wskaźnik złożony, reżim
+    fr = res["frame"]
+    print("Zdarzenia i atrybucja ruchów ...")
+    E = events.analyze_events(df)
+    print("Dane ze świata (rynki, uwaga, pogoda, Słońce) ...")
+    try:
+        raw_w, fails = world.update_world(full=full or not world.WORLD_CSV.exists())
+        if fails:
+            print("  [uwaga] brak szeregów:", ", ".join(fails))
+    except Exception as e:
+        print("  [uwaga] świat:", str(e)[:120])
+        raw_w = pd.read_csv(world.WORLD_CSV, index_col=0, parse_dates=True) if world.WORLD_CSV.exists() else None
+    T = world.transforms(raw_w.loc["2011-08-01":], df.index) if raw_w is not None and len(raw_w) else None
+    print("Regularność układu i skaner zależności ...")
+    Rg = regularity.run(df)
+    S = scan.run_scan(df, T) if T is not None else None
+    print("Zespół modeli (walk-forward) ...")
+    ens = ensemble.run(df, E["events"], fr["features"], fr["scores"], fr["composite"], Rg, T)
+    res["forecasts"] = ens["forecasts"]
+    for f in res["forecasts"]:
+        f["pred_z"] = 0.0
+        f["p5"], f["p95"] = f.get("p5"), f.get("p95")
+    res["quality"] = {h: {"active": v["alpha"] > 0, "n": v["n"]} for h, v in ens["horizons"].items()}
     log = store.update_log(res, df)
     stats = store.log_stats(log)
 
@@ -41,8 +68,16 @@ def update(full=False):
     slim = {k: v for k, v in res.items() if k != "frame"}
     slim["status"] = status
     slim["log_stats"] = stats
+    slim["ensemble"] = {k: v for k, v in ens.items() if k not in ("Xraw", "hmm")}
+    slim["ensemble"]["hmm"] = {k: v for k, v in ens["hmm"].items() if k != "p_hi_series"}
+    slim["events"] = {"table": E["table"].round(4).to_dict("records"), "moves": E["moves"], "cover": E["cover"], "upcoming": E["upcoming"]}
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
-    report.write_dashboard(res, status, log, stats)
+    slim["scan"] = ({"summary": S["summary"], "discoveries": S["discoveries"].round(4).to_dict("records"),
+                     "candidates": S["candidates"].round(4).to_dict("records")} if S else None)
+    slim["regularity"] = {k: v for k, v in Rg.items() if k not in ("rolling", "kalman")}
+    slim["regularity"]["kalman"] = {k: v for k, v in Rg["kalman"].items() if k != "series"}
+    C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
+    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg)
     print_summary(res)
     return res
 
@@ -53,7 +88,7 @@ def print_summary(res):
     print(f"{'Horyzont':>9} {'Data':>11} {'P10':>9} {'Mediana':>9} {'P90':>9} {'P(wzrost)':>10}  model")
     for f in res["forecasts"]:
         q = res["quality"][f["horizon"]]
-        tag = "przechył ON" if q["active"] else "bez przechyłu"
+        tag = "zespół modeli" if q["active"] else "tylko zmienność"
         print(f"{f['horizon']:>7} d {f['target']:>11} {f['p10']:>9,.0f} {f['p50']:>9,.0f} {f['p90']:>9,.0f} {f['prob_up']*100:>9.0f}%  {tag}")
     print(f"\nDashboard: {C.DASHBOARD_HTML}")
 

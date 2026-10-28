@@ -107,8 +107,11 @@ def forecast_cards(res):
         pos = lambda v: (math.log(v) - lo) / (hi - lo) * 100
         chg = (f["p50"] / p0 - 1) * 100
         up = f["prob_up"] * 100
-        badge = ('<span class="badge on">przechył sygnałów</span>' if q["active"]
-                 else '<span class="badge">bez przechyłu</span>')
+        badge = ('<span class="badge on">zespół modeli</span>' if q["active"]
+                 else '<span class="badge">tylko zmienność</span>')
+        v = f.get("view")
+        view = (f'<div class="view"><span class="muted sm">Pogląd modeli wskaźników <i>(bez potwierdzonej przewagi)</i></span>'
+                f'<b>{n(v["p50"])}</b><span class="muted sm"> · {(v["p50"]/p0-1)*100:+.1f}% · szansa wzrostu {v["prob_up"]*100:.0f}%</span></div>') if v else ""
         cards += f"""<article class="card fc">
 <header><h3>{f['horizon']} dni</h3>{badge}</header>
 <div class="muted sm">do {f['target']}</div>
@@ -119,7 +122,7 @@ def forecast_cards(res):
 <div class="tick" style="left:{pos(f['p50']):.1f}%"></div><div class="now" style="left:{pos(p0):.1f}%" title="cena dziś"></div></div>
 <div class="range-l"><span>{n(f['p10'])}</span><span class="muted">80% pasmo</span><span>{n(f['p90'])}</span></div>
 <div class="pup"><div class="ring" style="--p:{up:.0f}"><b>{up:.0f}%</b></div><span class="muted sm">szansa, że cena<br>będzie wyższa niż dziś</span></div>
-</article>"""
+{view}</article>"""
     return cards
 
 
@@ -149,20 +152,310 @@ def signals_html(res):
     return out
 
 
-def quality_html(res):
+MODEL_LAB = {"naive": "Bez zmian (benchmark)", "comp": "Wskaźnik złożony", "ridge": "Regresja grzbietowa",
+             "knn": "Analogi historyczne", "gbq": "Boosting kwantylowy", "scan": "Skaner świata"}
+LANG = {"en": "Anglojęzyczne", "de": "Niemcy / DACH", "fr": "Francja", "es": "Hiszpania / LatAm", "ru": "Rosja",
+        "ja": "Japonia", "ko": "Korea Płd.", "zh": "Chiny (zh)", "tr": "Turcja", "pl": "Polska", "pt": "Brazylia / Portugalia"}
+
+
+def models_html(ens):
     out = ""
-    for h, q in res["quality"].items():
-        on = q["active"]
-        ic = n(q["ic"], 3) if q["ic"] == q["ic"] else "–"
-        sk = n(q["skill"] * 100, 1, "%") if q["skill"] == q["skill"] else "–"
-        hit = n(q["hit"] * 100, 0, "%") if q["hit"] == q["hit"] else "–"
-        out += (f'<div class="card q"><header><h3>{h} dni</h3><span class="badge {"on" if on else ""}">'
-                f'{"przechył włączony" if on else "tylko zmienność"}</span></header>'
-                f'<dl><div><dt>Korelacja z wynikiem (IC)</dt><dd>{ic}</dd></div>'
-                f'<div><dt>Poprawa błędu vs „bez zmian”</dt><dd>{sk}</dd></div>'
-                f'<div><dt>Trafność kierunku</dt><dd>{hit}</dd></div>'
-                f'<div><dt>Punktów testu</dt><dd>{q["n"]}</dd></div></dl></div>')
+    for H, h in ens["horizons"].items():
+        rows = ""
+        for r in h["table"]:
+            p = r["dm_p"]
+            ptxt = "–" if p != p else f"{p:.2f}"
+            if r["model"] == "naive":
+                sk = '<td class="muted">–</td>'
+            else:
+                sk = f'<td class="{"pos" if r["skill"] > 0 else "neg"}">{r["skill"]*100:+.1f}%</td>'
+            rows += (f'<tr class="{"ens" if r["model"] == "ens" else ""}"><td>{r["label"]}</td>{sk}<td>{ptxt}</td>'
+                     f'<td>{r["cover80"]*100:.0f}%</td></tr>')
+        used = ", ".join(f'{MODEL_LAB[m]} {v*100:.0f}%' for m, v in h["weights"].items() if v > 0.005 and m != "naive")
+        state = (f'<span class="badge on">używa modeli: {used}</span>' if h["alpha"] > 0
+                 else '<span class="badge">żaden model nie ma istotnej przewagi</span>')
+        out += (f'<div class="card q"><header><h3>{H} dni</h3>{state}</header>'
+                f'<table class="tbl"><tr><th>Model</th><th title="Poprawa błędu kwantylowego (pinball) względem „bez zmian”">Skill</th>'
+                f'<th title="Wartość p testu Diebolda-Mariano (mniej = pewniej lepszy)">p</th><th title="Odsetek wyników w paśmie P10–P90 (cel 80%)">Pokrycie</th></tr>{rows}</table>'
+                f'<div class="muted sm" style="margin-top:8px">Punktów testu: {h["n"]}</div></div>')
     return out
+
+
+def regions_html(ens, df, res):
+    last = lambda c: df[c].dropna().iloc[-1] if c in df and df[c].notna().any() else None
+    tiles = []
+    kim = df["btckrw"] / df["usdkrw"] / df["close"] - 1 if {"btckrw", "usdkrw"} <= set(df.columns) else None
+    if kim is not None and kim.notna().any():
+        k = kim.dropna()
+        tiles.append(("Premia kimchi (Korea)", f"{k.iloc[-1]*100:+.1f}%", f"średnia 90 dni {k.tail(90).mean()*100:+.1f}%", "Cena BTC w Seulu vs świat: dodatnia = zapał lokalnych detalistów"))
+    if last("dvol") is not None:
+        vrp = ens["features_now"].get("dvol_vrp")
+        tiles.append(("Implikowana zmienność (DVOL)", f"{last('dvol'):.0f}", "Deribit, w skali rocznej, %", f"Premia za zmienność vs realna: {vrp:+.2f}" if vrp is not None else ""))
+    if last("pcr") is not None:
+        tiles.append(("Put/Call opcji", f"{last('pcr'):.2f}", "z otwartych pozycji (Deribit)", "Powyżej 1 = przewaga zabezpieczeń/spadków"))
+    if last("cot_lev") is not None:
+        tiles.append(("Fundusze lewarowane CME", f"{last('cot_lev')*100:+.0f}%", "pozycja netto / open interest (CFTC)", "Ujemna często oznacza basis trade (krótko futures, długo ETF)"))
+    tiles.append(("Reżim zmienności (HMM)", f"{ens['hmm']['p_hi']*100:.0f}%", "szansa stanu wysokiej zmienności", "Filtr 3-stanowy, parametry tylko z przeszłości"))
+    tiles.append(("Power law", f"{ens['powerlaw_z']:+.2f}σ", "odchylenie od trendu długoterminowego", "Ujemne = cena poniżej krzywej mocy"))
+    tl = "".join(f'<div class="card tile"><span class="muted sm">{a}</span><b>{b}</b><span class="muted sm">{c}</span><span class="muted sm" style="opacity:.8">{d}</span></div>' for a, b, c, d in tiles)
+    rows = ""
+    for k, name in LANG.items():
+        c = f"wiki_{k}"
+        if c not in df:
+            continue
+        s = df[c].dropna()
+        if len(s) < 400:
+            continue
+        v = float(np.log(s.tail(30).mean() / s.tail(365).mean()))
+        w = min(abs(v), 1.0) * 50
+        rows += (f'<div class="sig sm-row"><div class="sig-l"><b>{name}</b></div><div class="dv"><i class="mid"></i>'
+                 f'<span class="{"g" if v >= 0 else "r"}" style="left:{50 if v >= 0 else 50 - w:.1f}%;width:{w:.1f}%"></span></div>'
+                 f'<div class="sig-v"><b>{(math.exp(v) - 1) * 100:+.0f}%</b></div></div>')
+    return tl, rows
+
+
+CAT_LAB = None
+
+
+def _catlab(c):
+    import events_data
+    return events_data.CATEGORIES.get(c, c)
+
+
+def moves_html(E):
+    rows = ""
+    for m in E["moves"][:16]:
+        ch = "".join(f'<span class="cause {x["kind"]}" title="{html.escape(x["title"])} ({x["date"]})">{html.escape(_catlab(x["cat"]))}</span>' for x in m["causes"]) \
+            or '<span class="muted sm">brak jednoznacznego wydarzenia</span>'
+        rows += f'<tr><td>{m["date"]}</td><td class="{"pos" if m["ret"] >= 0 else "neg"}"><b>{m["ret"]:+.1f}%</b></td><td>{ch}</td></tr>'
+    c = E["cover"]
+    note = (f'Z {c["n_moves"]} największych ruchów (|z| ≥ 2,5) {c["explained_curated"]*100:.0f}% ma obok siebie wydarzenie z ręcznej bazy, a '
+            f'{c["explained_any"]*100:.0f}% jakiekolwiek (także automatyczne i kalendarzowe). Dla losowych dni ten odsetek to {c["placebo_any"]*100:.0f}%, '
+            f'więc samo „coś się wtedy działo” nie dowodzi przyczyny.')
+    return f'<table class="tbl"><tr><th>Data</th><th>Ruch</th><th>Powiązane wydarzenia (±1–2 dni)</th></tr>{rows}</table><p class="muted sm" style="margin-top:10px">{note}</p>'
+
+
+def study_html(E):
+    t = E["table"]
+    t = t[(t["window"] == 3) & (t["n"] >= 5)].copy()
+    t["abs"] = t["t"].abs()
+    t = t.sort_values("abs", ascending=False).head(16)
+    rows = ""
+    for r in t.itertuples():
+        w = min(abs(r.t) / 5, 1) * 50
+        sig = abs(r.t) >= 2 and r.n >= 8
+        rows += (f'<tr class="{"sigrow" if sig else ""}"><td>{html.escape(_catlab(r.cat))}</td><td>{r.n}</td>'
+                 f'<td class="{"pos" if r.mean_ret >= 0 else "neg"}">{r.mean_ret:+.1f}%</td><td>{r.pos*100:.0f}%</td>'
+                 f'<td><div class="dv"><i class="mid"></i><span class="{"g" if r.t >= 0 else "r"}" style="left:{50 if r.t >= 0 else 50 - w:.1f}%;width:{w:.1f}%"></span></div></td>'
+                 f'<td>{r.t:+.1f}</td></tr>')
+    return (f'<table class="tbl"><tr><th>Kategoria</th><th>N</th><th>Śr. zwrot 3 dni</th><th>% wzrostów</th><th></th><th>t</th></tr>{rows}</table>'
+            f'<p class="muted sm" style="margin-top:10px">Zwrot BTC od zamknięcia dnia przed wydarzeniem do 3. dnia po nim. Pogrubione: |t| ≥ 2 przy N ≥ 8 '
+            f'(kategorie z N &lt; 8 pokazują tylko kierunek). Przy ~30 kategoriach 1-2 takie wyniki zdarzają się z samego przypadku. '
+            f'Dla kategorii „automatycznych” (spadek akcji, skok VIX, dolar itd.) to głównie <b>współruch</b> w tych samych dniach, a nie dowód, że BTC reaguje z opóźnieniem.</p>')
+
+
+FEAT_LAB = {"comp": "Wskaźnik złożony", "val": "Wycena on-chain (MVRV, 200W, Mayer, Puell)", "macro": "Makro i płynność",
+            "sent": "Nastroje i dźwignia", "cycle": "Faza cyklu halvingowego", "mom30": "Momentum 30 dni", "mom90": "Momentum 90 dni",
+            "volpct": "Percentyl zmienności", "powerlaw": "Odchylenie od power law", "hmm_hi": "Reżim wysokiej zmienności (HMM)",
+            "hmm_mu": "Oczekiwany zwrot z HMM", "ev_eqdn30": "Spadki akcji w ostatnich 30 dniach", "ev_shock30": "Szoki rynkowe (30 dni)",
+            "ev_hack30": "Włamania (30 dni)", "stress": "Stres rynkowy (VIX > 25)", "fomc_soon": "FOMC w ciągu 3 dni",
+            "opex_soon": "Wygasanie opcji w ciągu 3 dni", "kimchi": "Premia kimchi", "wiki_west": "Uwaga Zachodu (Wikipedia)",
+            "wiki_asia": "Uwaga Azji (Wikipedia)", "dvol_vrp": "Premia za zmienność (DVOL)", "cot": "Pozycje funduszy CME",
+            "hurst": "Wykładnik Hursta (trwałość trendów)", "pent": "Entropia permutacyjna", "vr5": "Iloraz wariancji VR(5)",
+            "acabs": "Grupowanie zmienności", "hill": "Grubość ogonów (Hill)", "kalman": "Trend (filtr Kalmana)"}
+
+
+def why_html(res, ens, E, df):
+    fc = {f["horizon"]: f for f in res["forecasts"]}
+    p0 = res["price"]
+    sig = ens["sigma"]
+    cards = []
+
+    # 1. szerokość pasma
+    rows = "".join(f'<tr><td>{H} dni</td><td>±{h["sigma_H"]*100:.0f}%</td><td>{(fc[H]["p10"]/p0-1)*100:+.0f}% … {(fc[H]["p90"]/p0-1)*100:+.0f}%</td></tr>'
+                   for H, h in ens["horizons"].items())
+    dv = df["dvol"].dropna().iloc[-1] if "dvol" in df and df["dvol"].notna().any() else None
+    dvt = ""
+    if dv is not None:
+        impl = dv / math.sqrt(365)
+        dvt = (f'<li>Rynek opcji (Deribit DVOL = {dv:.0f}) oczekuje dziennej zmienności ok. <b>{impl:.1f}%</b>, a my używamy <b>{sig*100:.1f}%</b>. '
+               f'{"Opcje wyceniają więcej ruchu niż wynika z ostatnich dni." if impl > sig * 100 * 1.08 else ("Opcje wyceniają mniej ruchu niż wynika z modelu." if impl < sig * 100 * 0.92 else "Obie miary są zbieżne.")}</li>')
+    cards.append(("Skąd taka szerokość pasma",
+                  f'<ul><li>Dzienna zmienność to <b>{sig*100:.2f}%</b>, mieszanka trzech modeli ({ens["vol"]["weights"]["ewma"]*100:.0f}% EWMA, '
+                  f'{ens["vol"]["weights"]["garch"]*100:.0f}% GJR-GARCH, {ens["vol"]["weights"]["har"]*100:.0f}% HAR na wysokich i niskich cenach dnia). Wagi wybrane testem QLIKE.</li>'
+                  f'<li>Na horyzoncie H dni zmienność rośnie jak pierwiastek z czasu, a kształt rozkładu (grube ogony, skośność) pochodzi z rzeczywistych historycznych zwrotów, z większą wagą dla ostatnich dwóch lat.</li>'
+                  f'{dvt}<li>Model reżimów (HMM) daje <b>{ens["hmm"]["p_hi"]*100:.0f}%</b> szans, że rynek jest w stanie wysokiej zmienności.</li>'
+                  f'<li>Pasmo jest kalibrowane na historii tak, by ok. 80% wyników mieściło się między P10 a P90 (patrz „pokrycie” w teście modeli).</li></ul>'
+                  f'<table class="tbl"><tr><th>Horyzont</th><th>Zmienność</th><th>Pasmo 80% vs cena dziś</th></tr>{rows}</table>'))
+
+    # 2. dlaczego mediana
+    lines = ""
+    for H, h in ens["horizons"].items():
+        cand = [r for r in h["table"] if r["model"] not in ("naive", "ens")]
+        b = max(cand, key=lambda r: r["skill"])
+        p = b["dm_p"]
+        verdict = "przewaga istotna" if (p == p and p <= 0.05) else ("przewaga możliwa, ale niepewna" if (p == p and p <= 0.20) else "brak dowodu na przewagę")
+        lines += (f'<li><b>{H} dni:</b> najlepszy model to {b["label"].lower()} (skill {b["skill"]*100:+.1f}%, p = {p:.2f}), czyli <b>{verdict}</b>.</li>')
+    cards.append(("Dlaczego mediana to prawie dzisiejsza cena",
+                  f'<ul>{lines}</ul><p class="muted sm">Każdy model był testowany na historii metodą walk-forward, a zespół włącza go do prognozy dopiero, gdy jego przewaga '
+                  f'jest statystycznie istotna (pełna waga: p ≤ 0,03; wyłączony: p ≥ 0,10). {"Gdy żaden model nie spełnia progu, środek prognozy to cena bieżąca." if all(h["alpha"] == 0 for h in ens["horizons"].values()) else "Na horyzontach z włączonym zespołem środek prognozy jest przesunięty."} Taki wynik jest typowy dla BTC: '
+                  f'badania zgodnie wskazują, że kierunek ceny na miesiące jest trudny do przewidzenia, a wiarygodnie prognozować da się głównie zmienność.</p>'))
+
+    # 3. pogląd modeli wskaźników
+    H = 90 if 90 in ens["horizons"] else list(ens["horizons"])[0]
+    ex = ens["horizons"][H]["explain"]
+    drv = ""
+    for name, c, x in ex.get("ridge", [])[:6]:
+        eff = c * ens["horizons"][H]["sigma_H"] * 100
+        drv += (f'<tr><td>{FEAT_LAB.get(name, name)}</td><td>{x:+.1f}σ</td><td class="{"pos" if eff >= 0 else "neg"}">{eff:+.1f}%</td></tr>')
+    view = fc[H]["view"]
+    sg = sorted([p for p in res["signals"] if p["score"] is not None and p["weight"] > 0], key=lambda p: -(p["score"] * p["weight"]))
+    pos = ", ".join(f'{LABELS[p["key"]]} ({p["score"]:+.2f})' for p in sg[:3])
+    neg = ", ".join(f'{LABELS[p["key"]]} ({p["score"]:+.2f})' for p in sg[::-1][:3] if p["score"] < 0) or "brak wyraźnych"
+    cards.append((f"Co przesuwa „pogląd modeli wskaźników” ({H} dni)",
+                  f'<p>Pogląd: mediana <b>{n(view["p50"])}</b> ({(view["p50"]/p0-1)*100:+.1f}%), szansa wzrostu {view["prob_up"]*100:.0f}%. Największy wkład mają:</p>'
+                  f'<table class="tbl"><tr><th>Czynnik</th><th>Stan dziś (odch. od normy)</th><th>Wpływ na medianę</th></tr>{drv}</table>'
+                  f'<p class="muted sm" style="margin-top:8px">Najmocniej „za” wzrostem: {pos}. Najmocniej „przeciw”: {neg}. '
+                  f'Ten pogląd nie przeszedł testu istotności, więc jest scenariuszem, a nie prognozą.</p>'))
+
+    # 4. analogi
+    kn = ex.get("knn", [])
+    ka = ex.get("knn_all")
+    if kn:
+        rows = "".join(f'<tr><td>{d}</td><td class="{"pos" if r >= 0 else "neg"}">{r:+.0f}%</td></tr>' for d, r, _ in kn)
+        cards.append((f"Podobne dni z przeszłości ({H} dni później)",
+                      f'<p>Szukamy dni o podobnym zestawie: wskaźnik złożony, momentum, zmienność, power law, reżim HMM i faza halvingu. '
+                      f'Wśród {ka["n"]} najbliższych analogów <b>{ka["up"]*100:.0f}%</b> skończyło się wzrostem, a mediana zwrotu to <b>{ka["median_ret"]:+.0f}%</b>. '
+                      f'<b>Uwaga:</b> te dni układają się w zaledwie {ka.get("episodes", "?")} oddzielnych epizodów (kolejne dni jednego rajdu nie są niezależnymi obserwacjami), '
+                      f'a model analogów miał w teście na historii skill {[r for r in ens["horizons"][H]["table"] if r["model"] == "knn"][0]["skill"]*100:+.0f}% względem „bez zmian”. '
+                      f'Traktuj to jako ilustrację, nie dowód.</p>'
+                      f'<table class="tbl"><tr><th>Najbliższe analogi (min. 30 dni odstępu)</th><th>Zwrot po {H} dniach</th></tr>{rows}</table>'))
+
+    # 5. kontekst wydarzeń
+    ev = E["events"]
+    last = df.index[-1]
+    rec = ev[(ev["date"] > last - pd.Timedelta(days=30)) & (ev["date"] <= last) & (~ev["cat"].isin(["nfp", "opex", "fomc"]))]
+    recl = "".join(f'<li>{r.date:%Y-%m-%d}: {html.escape(r.title)}</li>' for r in rec.itertuples()) or "<li>Brak istotnych szoków rynkowych i wydarzeń z naszej bazy w ostatnich 30 dniach.</li>"
+    up = "".join(f'<li>{u["date"]}: {html.escape(u["title"])}' + (f' <span class="muted">(historycznie po 3 dniach {u["hist"]["mean_ret"]:+.1f}%, N={u["hist"]["n"]})</span>' if u["hist"] else "") + "</li>"
+                 for u in E["upcoming"][:4])
+    cards.append(("Kontekst wydarzeń",
+                  f'<p style="margin-bottom:4px"><b>Ostatnie 30 dni</b></p><ul>{recl}</ul><p style="margin:10px 0 4px"><b>Nadchodzące</b></p><ul>{up}</ul>'
+                  f'<p class="muted sm">Wydarzenia wchodzą do modeli jako cechy (liczba szoków, FOMC/opcje w oknie 3 dni, włamania). Zespół dopuści je do prognozy, gdy test wykaże wartość predykcyjną.</p>'))
+
+    # 6. pewność
+    cov = " · ".join(f'{H} d: {[r for r in h["table"] if r["model"] == "ens"][0]["cover80"]*100:.0f}%' for H, h in ens["horizons"].items())
+    cards.append(("Na ile ufać tej prognozie",
+                  f'<ul><li><b>Szerokość pasma: wiarygodna.</b> W teście na historii pasmo P10-P90 zawierało wynik w odsetku ({cov}) przypadków, cel to 80%.</li>'
+                  + ('<li><b>Kierunek: niepewny.</b> Brak statystycznie istotnej przewagi nad „bez zmian”, więc P(wzrost) wynosi ok. 50%.</li>'
+                     if all(h["alpha"] == 0 for h in ens["horizons"].values()) else
+                     '<li><b>Kierunek: częściowo oparty na modelach.</b> Na części horyzontów zespół znalazł istotną przewagę, ale próba jest mała i obserwacje się nakładają, więc nie traktuj tego jak pewności.</li>') +
+                  f'<li><b>Czarne łabędzie:</b> historia ma tylko 4 cykle, a rynek zmienia się strukturalnie (ETF-y, spółki skarbcowe). Prawdziwe szoki (FTX, COVID) wychodzą poza pasma.</li>'
+                  f'<li>System sam wykryje poprawę lub pogorszenie modeli i dostosuje wagi. Dziennik prognoz poniżej pokazuje realną skuteczność.</li></ul>'))
+    return "".join(f'<article class="card why"><h3 class="ct">{t}</h3>{b}</article>' for t, b in cards)
+
+
+def _pctbar(p):
+    return f'<div class="pbar"><i style="left:{p*100:.0f}%"></i></div><div class="range-l sm muted"><span>nisko</span><span>percentyl {p*100:.0f}</span><span>wysoko</span></div>'
+
+
+def conclusion_text(ens):
+    act = [H for H, h in ens["horizons"].items() if h["alpha"] > 0]
+    off = [H for H, h in ens["horizons"].items() if h["alpha"] == 0]
+    if not act:
+        s = ("Wniosek na dziś: przewaga nad prognozą „bez zmian” jest na wszystkich horyzontach nieistotna statystycznie, zgodnie z literaturą "
+             "(kierunek BTC na miesiące jest trudny do przewidzenia). Dlatego główna prognoza to rozkład wynikający ze zmienności, a „pogląd modeli wskaźników” "
+             "pokazujemy osobno jako scenariusz bez potwierdzonej przewagi.")
+    else:
+        s = (f"Wniosek na dziś: na horyzoncie {', '.join(map(str, act))} dni zespół wykrył statystycznie istotną przewagę i przesuwa medianę "
+             f"(ostrożnie: obserwacje na długich horyzontach mocno się nakładają). "
+             + (f"Na horyzoncie {', '.join(map(str, off))} dni prognoza to rozkład ze zmienności." if off else ""))
+    return s + (" Szansa wzrostu ok. 50% to założenie neutralne: w historii próby testowej BTC rósł w ok. 60% okien 30-dniowych, ale uwzględnienie tego dryfu "
+                "nie poprawiło wyników testu, a przeszłe zyski nie muszą się powtórzyć. System aktualizuje się sam, więc wagi modeli zmieniają się wraz z nowymi danymi.")
+
+
+def regularity_html(Rg):
+    nw, pc = Rg["now"], Rg["pct"]
+    h, pe, vr, aa, hl = nw["hurst"], nw["pent"], nw["vr5"], nw["acabs"], nw["hill"]
+    mk, kal, evt = Rg["markov"], Rg["kalman"], Rg["evt"]
+    cyc = ", ".join(f'{p:.0f} dni (×{s:.0f})' for p, s in Rg["cycles"])
+    tiles = [
+        ("Wykładnik Hursta (DFA, 1 rok)", f"{h:.2f}", pc["hurst"],
+         ("Trwałość trendów: ruchy mają niewielką tendencję do kontynuacji." if h > 0.53 else "Powrót do średniej: ruchy częściej się cofają." if h < 0.47 else "Blisko 0,5: zachowanie jak losowy spacer.")),
+        ("Entropia permutacyjna", f"{pe:.3f}", pc["pent"],
+         "Blisko 1 = kolejność zwrotów jest praktycznie bez wzorców, czyli szum." if pe > 0.98 else "Poniżej 1 = pojawiają się powtarzalne wzorce kolejności."),
+        ("Iloraz wariancji VR(5) − 1", f"{vr:+.3f}", pc["vr5"],
+         "Ujemny = lekki powrót do średniej w skali 5 dni; blisko 0 = losowy spacer." if vr < 0 else "Dodatni = zwroty w 5 dniach lekko się kumulują (trend)."),
+        ("Grupowanie zmienności (autokorelacja |r|)", f"{aa:+.2f}", pc["acabs"],
+         "Silna struktura: duże ruchy przychodzą seriami. To jest część rynku, którą da się prognozować." if aa > 0.15 else "Słabe grupowanie zmienności."),
+        ("Grubość ogonów (indeks Hilla)", f"{hl:.1f}", pc["hill"],
+         "α ≈ 3 oznacza bardzo grube ogony: wielkie ruchy są dużo częstsze niż w rozkładzie normalnym." if hl < 4 else "Ogony zbliżone do umiarkowanie grubych."),
+    ]
+    tl = "".join(f'<div class="card tile"><span class="muted sm">{a}</span><b>{b}</b>{_pctbar(c)}<span class="muted sm">{d}</span></div>' for a, b, c, d in tiles)
+    nx = mk["next"]
+    names = ["spadek", "neutralnie", "wzrost"]
+    ev = (f'<div class="card tile"><span class="muted sm">Ryzyko ogona (teoria wartości ekstremalnych)</span><b>{evt["var990"]*100:.1f}%</b>'
+          f'<span class="muted sm">dzienny spadek przekraczany raz na 100 dni (rozkład normalny dałby {evt["gauss99"]*100:.1f}%); raz na 1000 dni: {evt["var999"]*100:.1f}%</span></div>') if evt else ""
+    extra = (f'<div class="card tile"><span class="muted sm">Łańcuch Markowa (tydzień → tydzień)</span><b>{max(nx)*100:.0f}% {names[int(np.argmax(nx))]}</b>'
+             f'<span class="muted sm">po tygodniu „{names[mk["now"]]}” kolejny: spadek {nx[0]*100:.0f}%, neutralnie {nx[1]*100:.0f}%, wzrost {nx[2]*100:.0f}%. '
+             f'Test zależności: p = {mk["p_dep"]:.2f} ({"słaba, ale możliwa zależność" if mk["p_dep"] < 0.1 else "brak istotnej zależności"}).</span></div>'
+             f'<div class="card tile"><span class="muted sm">Trend (filtr Kalmana)</span><b>{kal["slope_w"]*100:+.2f}% / tydz.</b>'
+             f'<span class="muted sm">niepewność ±{kal["sd"]*100:.1f}% (z = {kal["z"]:+.1f}). {"Trend nieodróżnialny od zera." if abs(kal["z"]) < 2 else "Trend istotny statystycznie."}</span></div>'
+             f'<div class="card tile"><span class="muted sm">Dominujące rytmy zmienności (periodogram)</span><b>{Rg["cycles"][0][0]:.0f} dni</b>'
+             f'<span class="muted sm">{cyc}. Rytm 7-dniowy to efekt dni tygodnia; ~rok i dłuższe okresy są niepewne przy 15 latach danych.</span></div>')
+    dir_random = 0.47 <= h <= 0.57 and pe > 0.97 and abs(vr) < 0.1
+    vol_struct = aa > 0.12
+    verdict = (("W kierunku układ jest bliski losowemu spacerowi (entropia, iloraz wariancji, Hurst). " if dir_random else
+                "W kierunku widać pewną strukturę (Hurst, entropia lub iloraz wariancji odbiegają od szumu), co wymaga potwierdzenia testem na historii. ")
+               + ("Zmienność ma wyraźną strukturę (grupowanie, rytm tygodniowy, grube ogony), więc system prognozuje przede wszystkim rozkład i ryzyko. "
+                  if vol_struct else "Grupowanie zmienności jest obecnie słabe. ")
+               + "Miary liczone są na oknie jednego roku, więc na bieżąco się zmieniają.")
+    return tl + ev + extra, verdict
+
+
+def scan_html(S):
+    if S is None:
+        return '<div class="card empty"><b>Brak danych ze świata</b></div>', ""
+    s = S["summary"]
+    head = (f'<div class="card"><p style="margin:0 0 6px"><b>Przetestowano {s["n_tests"]:,} hipotez</b> z {s["n_series"]} szeregów (rynki 20+ krajów, towary, waluty, '
+            f'uwaga na Wikipedii wokół polityki i kryzysów, pogoda w regionach kopania, plamy słoneczne, trzęsienia ziemi, księżyc, sezonowość), '
+            f'w różnych opóźnieniach (0, 7, 30 dni) i horyzontach (7, 30 dni).</p>'
+            f'<div class="funnel"><div><b>{s["raw_p05"]}</b><span>„istotnych” (p&lt;0,05)</span></div><div><b>~{s["expected_fp"]:.0f}</b><span>spodziewane z samego przypadku</span></div>'
+            f'<div><b>{s["n_fdr"]}</b><span>po korekcie FDR</span></div><div><b>{s["n_stable"]}</b><span>i stabilne w obu połowach</span></div>'
+            f'<div><b>{s["n_disc"]}</b><span>i potwierdzone poza próbą</span></div></div></div>').replace(",", " ")
+    def rows(df, show_p=True):
+        out = ""
+        for r in df.itertuples():
+            out += (f'<tr><td>{html.escape(r.label)}</td><td>{r.h} d</td><td>{r.lag} d</td><td class="{"pos" if r.r >= 0 else "neg"}">{r.r:+.2f}</td>'
+                    f'<td>{r.p:.3f}</td><td class="{"pos" if r.r_test >= 0 else "neg"}">{r.r_test:+.2f}</td></tr>')
+        return out
+    th = '<tr><th>Szereg (transformacja)</th><th>Horyzont</th><th>Opóźnienie</th><th>Korelacja</th><th>p</th><th>Test poza próbą</th></tr>'
+    if len(S["discoveries"]):
+        d = f'<table class="tbl">{th}{rows(S["discoveries"])}</table>'
+    else:
+        d = ('<p class="muted" style="margin:0">Żadna zależność nie przeszła wszystkich filtrów. To typowy wynik: przy tak szerokim przeszukiwaniu '
+             'większość „odkryć” to przypadek. System skanuje dalej przy każdej aktualizacji.</p>')
+    c = f'<table class="tbl">{th}{rows(S["candidates"])}</table>'
+    co = ""
+    for df_, sign in ((S["comove_pos"], 1), (S["comove_neg"], -1)):
+        for r in df_.itertuples():
+            w = min(abs(r.r), 0.6) / 0.6 * 50
+            co += (f'<div class="sig sm-row"><div class="sig-l"><b>{html.escape(r.label)}</b></div><div class="dv"><i class="mid"></i>'
+                   f'<span class="{"g" if r.r >= 0 else "r"}" style="left:{50 if r.r >= 0 else 50 - w:.1f}%;width:{w:.1f}%"></span></div>'
+                   f'<div class="sig-v"><b>{r.r:+.2f}</b></div></div>')
+    return head, (f'<div class="two2"><div class="card"><h3 class="ct">Odkrycia po wszystkich filtrach</h3>{d}'
+                  f'<h3 class="ct" style="margin-top:18px">Najciekawsze kandydaty (nie przeszły filtrów, obserwujemy)</h3>{c}'
+                  f'<p class="muted sm" style="margin-top:8px">Korelacja rangowa Spearmana z przyszłym zwrotem BTC. Kandydat jest stabilny w czasie i ma ten sam znak poza próbą, '
+                  f'ale po uwzględnieniu liczby testów nie jest istotny.</p></div>'
+                  f'<div class="card"><h3 class="ct">Współruch tygodniowy z BTC (opis, nie predykcja)</h3>{co}</div></div>')
+
+
+def upcoming_html(E):
+    rows = ""
+    for u in E["upcoming"][:10]:
+        h = u["hist"]
+        hist = (f'historycznie po 3 dniach: {h["mean_ret"]:+.1f}% · wzrost w {h["pos"]*100:.0f}% (N={h["n"]})' if h else "brak historii")
+        rows += f'<tr><td>{u["date"]}</td><td>{html.escape(u["title"])}</td><td class="muted">{hist}</td></tr>'
+    return f'<table class="tbl"><tr><th>Data</th><th>Wydarzenie</th><th>Typowa reakcja BTC</th></tr>{rows}</table>'
 
 
 def track_html(stats):
@@ -198,8 +491,10 @@ def corr_html(corr):
 # ----------------------------------------------------------------------------------------------
 # Główna funkcja
 # ----------------------------------------------------------------------------------------------
-def write_dashboard(res, status, log, stats):
+def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None):
     fr = res["frame"]
+    reg_tiles, reg_verdict = regularity_html(Rg)
+    scan_head, scan_body = scan_html(S)
     f = fr["features"]
     price = f["price"]
     ep = pd.Timestamp("1970-01-01")
@@ -218,6 +513,11 @@ def write_dashboard(res, status, log, stats):
         "comp": ser_list(comp, 3), "halvings": [(pd.Timestamp(h) - ep).days for h in C.HALVINGS],
         "fc": [{"h": x["horizon"], **{k: x[k] for k in ("p5", "p10", "p25", "p50", "p75", "p90", "p95")}} for x in res["forecasts"]],
     }
+    evd = E["events"]
+    sel = evd[((evd["kind"] == "curated") | ((evd["cat"] == "hack") & (evd["imp"] >= 2))) & (evd["date"] <= price.index[-1])]
+    data["events"] = [{"d": (r.date - ep).days, "c": _catlab(r.cat), "t": r.title, "r": (None if pd.isna(r.r3) else round(float(r.r3), 1))}
+                      for r in sel.itertuples()]
+    reg2_tiles, reg_rows = regions_html(ens, df, res)
 
     def delta(label, v):
         return f'<div class="dl"><span class="muted sm">{label}</span><b class="{"pos" if v >= 0 else "neg"}">{v:+.1f}%</b></div>'
@@ -236,7 +536,19 @@ def write_dashboard(res, status, log, stats):
             .replace("%%CYCLE%%", cycle_html(fe.get("halv_days")))
             .replace("%%FCARDS%%", forecast_cards(res))
             .replace("%%SIGNALS%%", signals_html(res))
-            .replace("%%QUALITY%%", quality_html(res))
+            .replace("%%CONCLUSION%%", conclusion_text(ens))
+            .replace("%%WHY%%", why_html(res, ens, E, df))
+            .replace("%%MODELS%%", models_html(ens))
+            .replace("%%MOVES%%", moves_html(E))
+            .replace("%%STUDY%%", study_html(E))
+            .replace("%%UPCOMING%%", upcoming_html(E))
+            .replace("%%REGTILES%%", reg2_tiles)
+            .replace("%%REGULARITY%%", reg_tiles)
+            .replace("%%REGVERDICT%%", reg_verdict)
+            .replace("%%SCANHEAD%%", scan_head)
+            .replace("%%SCANBODY%%", scan_body)
+            .replace("%%REGROWS%%", reg_rows)
+            .replace("%%VOLW%%", ", ".join(f"{k} {v*100:.0f}%" for k, v in ens["vol"]["weights"].items()))
             .replace("%%TRACK%%", track_html(stats))
             .replace("%%CORR%%", corr_html(res["corr90"]))
             .replace("%%PILLS%%", pills)
@@ -344,9 +656,25 @@ h2::after{content:"";flex:1;height:1px;background:var(--line)}
 .pill i{width:7px;height:7px;border-radius:50%;background:var(--green)}.pill.bad i{background:var(--red)}.pill.bad{border-color:color-mix(in srgb,var(--red) 40%,transparent)}
 .disc{margin-top:40px;padding:16px 20px;border-radius:16px;border:1px solid color-mix(in srgb,var(--amber) 35%,transparent);background:color-mix(in srgb,var(--amber) 8%,transparent);font-size:13px;color:var(--muted)}
 .disc b{color:var(--fg)}footer{margin-top:26px;text-align:center;font-size:12px;color:var(--muted)}
+.tbl{border-collapse:collapse;width:100%;font-size:13.5px}.tbl th{color:var(--muted);font-weight:600;text-align:left;font-size:12px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.tbl td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}.tbl tr:last-child td{border-bottom:0}.tbl .dv{min-width:70px}
+.tbl tr.sigrow td:first-child,.tbl tr.sigrow td:last-child{font-weight:700}.tbl tr.ens td{background:color-mix(in srgb,var(--accent) 8%,transparent);font-weight:600}
+.two2{display:grid;grid-template-columns:1fr 1fr;gap:14px}.ct{font-size:15px;margin-bottom:10px}.two2>*,.grid2>*,.grid4>*,.tiles3>*{min-width:0}
+.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.q header{flex-wrap:wrap;gap:8px}.q .badge{white-space:normal}
+.card:has(.tbl){overflow-x:auto}
+.tiles3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.tiles3 .tile b{font-size:26px}
+.cause{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;margin:2px 4px 2px 0;background:var(--track);color:var(--fg);cursor:default}
+.cause.curated{background:color-mix(in srgb,var(--accent) 22%,var(--track))}.cause.calendar{opacity:.8}.cause.auto{background:color-mix(in srgb,var(--blue) 18%,var(--track))}
+.view{margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--bg2);border:1px dashed var(--line2);display:flex;flex-direction:column;gap:2px}.view b{font-size:17px}
+.why ul{margin:0 0 10px;padding-left:18px;font-size:13.5px}.why li{margin:5px 0}.why p{margin:6px 0;font-size:13.5px}.why .tbl{margin-top:6px}
+.pbar{position:relative;height:6px;background:linear-gradient(90deg,var(--track),color-mix(in srgb,var(--blue) 40%,var(--track)));border-radius:4px;margin:8px 0 2px}
+.pbar i{position:absolute;top:-4px;width:3px;height:14px;margin-left:-1.5px;border-radius:2px;background:var(--accent)}
+.funnel{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:10px}.funnel div{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column}
+.funnel b{font-size:24px;letter-spacing:-.02em}.funnel span{font-size:12px;color:var(--muted)}
+.evt{display:inline-flex;align-items:center;gap:6px;cursor:pointer}.evt input{accent-color:var(--accent)}
 .reveal{opacity:0;transform:translateY(10px);animation:rise .7s cubic-bezier(.2,.8,.2,1) forwards}
 @keyframes rise{to{opacity:1;transform:none}}
-@media (max-width:980px){.hero{grid-template-columns:1fr 1fr}.price-card{grid-column:1/-1}.grid4{grid-template-columns:repeat(2,1fr)}.sgrid,.two{grid-template-columns:1fr}.tiles{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:980px){.funnel{grid-template-columns:repeat(2,1fr)}.two2,.tiles3,.grid2{grid-template-columns:1fr}.hero{grid-template-columns:1fr 1fr}.price-card{grid-column:1/-1}.grid4{grid-template-columns:repeat(2,1fr)}.sgrid,.two{grid-template-columns:1fr}.tiles{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:620px){.hero,.grid4{grid-template-columns:1fr}.deltas{grid-template-columns:repeat(2,1fr)}.sig{grid-template-columns:1fr 1fr;gap:8px 14px}.sig .dv{grid-column:1/-1;order:3}.wrap{padding:18px 14px 40px}}
 @media (prefers-reduced-motion:reduce){.reveal,.needle{animation:none;opacity:1;transform:none}.needle{transform:rotate(var(--rot))}}
 </style></head><body><div class="wrap">
@@ -372,7 +700,8 @@ h2::after{content:"";flex:1;height:1px;background:var(--line)}
 <h2>Cena i prognoza</h2>
 <section class="card chart-card reveal" style="animation-delay:.1s">
  <div class="chart-head"><div class="legend"><span><i style="background:var(--fg)"></i>Cena</span><span><i style="background:var(--accent)"></i>Mediana prognozy</span>
-  <span><i style="background:var(--amber)"></i>Realized Price</span><span><i style="background:var(--violet)"></i>200-tyg. średnia</span></div>
+  <span><i style="background:var(--amber)"></i>Realized Price</span><span><i style="background:var(--violet)"></i>200-tyg. średnia</span>
+  <label class="evt"><input type="checkbox" id="evtoggle" checked> wydarzenia</label></div>
   <div class="seg" id="rng"><button data-m="3">3M</button><button data-m="12" class="on">1R</button><button data-m="36">3L</button><button data-m="0">Wszystko</button></div></div>
  <div class="chart" id="chart"><div class="cx" id="cx"></div><div class="tip" id="tip"></div></div>
  <div class="legend2"><span><i style="width:22px;height:8px;border-radius:4px;background:color-mix(in srgb,var(--blue) 35%,transparent)"></i>pasmo 90% (P5–P95)</span>
@@ -383,6 +712,9 @@ h2::after{content:"";flex:1;height:1px;background:var(--line)}
 <section class="grid4">%%FCARDS%%</section>
 <p class="note">Pasmo 80% (P10–P90) powinno obejmować cenę w ok. 4 przypadkach na 5. Jego szerokość wynika z bieżącej zmienności i empirycznego rozkładu błędów z całej historii BTC. Pomarańczowy znacznik to mediana, biała kropka to dzisiejsza cena.</p>
 
+<h2>Dlaczego taka prognoza?</h2>
+<section class="grid2">%%WHY%%</section>
+
 <h2>Sygnały składowe</h2>
 <section class="sgrid">%%SIGNALS%%</section>
 <p class="note">Każdy sygnał ma ocenę od −1 (historycznie przegrzanie) do +1 (historycznie okazja). Wskaźnik złożony to średnia ważona dostępnych sygnałów; wagi odzwierciedlają to, jak sprawdzały się wskaźniki w opracowaniach (najwyżej: MVRV i 200-tygodniowa średnia). Wagi zmienisz w <code>config.py</code>.</p>
@@ -390,9 +722,30 @@ h2::after{content:"";flex:1;height:1px;background:var(--line)}
 <h2>Wskaźnik złożony w czasie</h2>
 <section class="card chart-card reveal"><div class="chart" id="chart2"><div class="tip" id="tip2"></div></div></section>
 
-<h2>Czy model ma przewagę? Test na historii</h2>
-<section class="grid4">%%QUALITY%%</section>
-<p class="note">Test walk-forward: w każdym punkcie model uczy się wyłącznie na danych znanych wtedy, po czym prognozuje przyszłość. „Przechył sygnałów” (przesunięcie mediany według wskaźnika złożonego) włącza się tylko, gdy korelacja IC ≥ %%MIN_IC%% i błąd jest mniejszy niż przy prognozie „bez zmian”. W przeciwnym razie mediana to cena bieżąca, a pasmo wynika wyłącznie ze zmienności. Obserwacje na dłuższych horyzontach nakładają się, więc efektywna liczba niezależnych punktów jest znacznie mniejsza niż „punktów testu”. Traktuj wynik ostrożnie.</p>
+<h2>Mapa wydarzeń</h2>
+<p class="note" style="margin-top:0">Baza łączy wydarzenia opisane ręcznie, kalendarz (FOMC, wygasanie opcji, rynek pracy, wybory), włamania z DefiLlama oraz szoki wykrywane automatycznie z danych rynkowych (VIX, akcje, dolar, rentowności, ropa, złoto, kredyt, jen). Każde wydarzenie jest nakładane na oś czasu ceny (znaczniki na wykresie wyżej, najedź kursorem), a typowa reakcja BTC jest mierzona statystycznie.</p>
+<section class="two2"><div class="card"><h3 class="ct">Największe ruchy i powiązane wydarzenia</h3>%%MOVES%%</div>
+<div class="card"><h3 class="ct">Typowa reakcja BTC wg kategorii wydarzeń</h3>%%STUDY%%</div></section>
+<h2>Nadchodzące wydarzenia</h2>
+<section class="card">%%UPCOMING%%</section>
+
+<h2>Regiony, nastroje i pozycjonowanie</h2>
+<section class="tiles3">%%REGTILES%%</section>
+<section class="card" style="margin-top:14px"><h3 class="ct">Uwaga na Wikipedii (hasło „Bitcoin”): ostatnie 30 dni vs średnia roczna</h3><p class="muted sm" style="margin:2px 0 8px">Język jako przybliżenie regionu. Wzrost uwagi wyprzedzał lub towarzyszył ruchom cen w poprzednich cyklach.</p>%%REGROWS%%</section>
+
+<h2>Regularność układu</h2>
+<p class="note" style="margin-top:0">Czy ruchy BTC mają strukturę, czy są szumem? Mierzymy to na kroczącym oknie roku, wyłącznie z przeszłości. Pasek pokazuje, gdzie obecna wartość leży na tle całej historii.</p>
+<section class="tiles3">%%REGULARITY%%</section>
+<p class="note"><b>Wniosek:</b> %%REGVERDICT%%</p>
+
+<h2>Skaner świata: setki szeregów, jeden uczciwy test</h2>
+%%SCANHEAD%%
+%%SCANBODY%%
+
+<h2>Modele i test na historii</h2>
+<p class="note" style="margin-top:0">Pięć modeli (benchmark „bez zmian”, wskaźnik złożony, regresja grzbietowa na ~20 cechach, analogi historyczne, boosting kwantylowy) prognozuje rozkład zwrotu. Zmienność to mieszanka %%VOLW%% (EWMA, GJR-GARCH, HAR). Każdy model jest testowany metodą walk-forward: uczy się tylko na danych znanych w danym dniu. Zespół dopuszcza modele do prognozy dopiero, gdy ich przewaga nad „bez zmian” jest statystycznie istotna (test Diebolda-Mariano na przeszłych punktach). Skill to poprawa błędu kwantylowego, p to wartość testu, a pokrycie to odsetek wyników w paśmie 80% (cel 80%).</p>
+<section class="grid2">%%MODELS%%</section>
+<p class="note">%%CONCLUSION%%</p>
 
 <h2>Skuteczność zapisanych prognoz</h2>
 %%TRACK%%
@@ -412,7 +765,8 @@ const css=getComputedStyle(document.documentElement), C=n=>css.getPropertyValue(
 const fmtD=d=>new Date(d*864e5).toISOString().slice(0,10);
 const fmtP=v=>v==null?'–':Math.round(v).toLocaleString('pl-PL').replace(/\s/g,' ');
 const el=document.getElementById('chart'), cx=document.getElementById('cx'), tip=document.getElementById('tip');
-let months=12;
+let months=12,showEv=true;
+const evBox=document.getElementById('evtoggle');if(evBox)evBox.onchange=()=>{showEv=evBox.checked;draw();};
 const keys=['p5','p10','p25','p50','p75','p90','p95'];
 const fcPts=k=>[[LAST,D.price[N-1]]].concat(D.fc.map(f=>[LAST+f.h,f[k]]));
 function interp(k,x){const p=fcPts(k);for(let i=1;i<p.length;i++){if(x<=p[i][0]){const t=(x-p[i-1][0])/(p[i][0]-p[i-1][0]);return Math.exp(Math.log(p[i-1][1])+t*(Math.log(p[i][1])-Math.log(p[i-1][1])));}}return p[p.length-1][1];}
@@ -451,6 +805,10 @@ function draw(){
  let ad='M'+X(D.dates[i0]).toFixed(1)+' '+(H-pb);for(let i=i0;i<N;i++)ad+='L'+X(D.dates[i]).toFixed(1)+' '+Y(D.price[i]).toFixed(1);ad+='L'+X(LAST).toFixed(1)+' '+(H-pb)+'Z';
  s+=`<path d="${ad}" fill="url(#af)"/>`;
  line(D.price,C('--fg'),1.7);
+ geo.ev=[];
+ if(showEv)D.events.forEach(e=>{if(e.d<x0||e.d>LAST)return;const p=D.price[e.d-D.dates[0]];if(p==null)return;
+  const col=e.r==null?C('--muted'):(e.r>=0?C('--green'):C('--red'));geo.ev.push({x:X(e.d),y:Y(p),e});
+  s+=`<circle cx="${X(e.d)}" cy="${Y(p)}" r="4" fill="${col}" stroke="${C('--bg2')}" stroke-width="1.5"/>`;});
  s+=`<path d="${fcPts('p50').map((p,i)=>(i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)).join('')}" fill="none" stroke="${C('--accent')}" stroke-width="2.2" stroke-dasharray="6 4"/>`;
  s+=`<line x1="${X(LAST)}" x2="${X(LAST)}" y1="${pt}" y2="${H-pb}" class="hv"/>`;
  D.fc.forEach(f=>{s+=`<circle cx="${X(LAST+f.h)}" cy="${Y(f.p50)}" r="4" fill="${C('--accent')}" stroke="${C('--bg2')}" stroke-width="2"/>`;});
@@ -460,7 +818,9 @@ function draw(){
 function hover(e){
  const r=el.getBoundingClientRect(),px=e.clientX-r.left;if(px<geo.pl||px>geo.W-geo.pr){off();return;}
  const x=geo.x0+(px-geo.pl)/(geo.W-geo.pl-geo.pr)*(geo.x1-geo.x0);let html;
- if(x<=LAST+.5){let lo=0,hi=N-1;while(lo<hi){const m=(lo+hi)>>1;if(D.dates[m]<x)lo=m+1;else hi=m;}
+ const near=(geo.ev||[]).reduce((b,o)=>Math.abs(o.x-px)<9&&(!b||Math.abs(o.x-px)<Math.abs(b.x-px))?o:b,null);
+ if(near){const e=near.e;html=`<b>${fmtD(e.d)}</b><div style="display:block;color:var(--fg);margin-bottom:4px">${e.t}</div><div><span>Kategoria</span><span>${e.c}</span></div>`+(e.r==null?'':`<div><span>BTC po 3 dniach</span><span style="color:${e.r>=0?C('--green'):C('--red')}">${e.r>0?'+':''}${e.r}%</span></div>`);}
+ else if(x<=LAST+.5){let lo=0,hi=N-1;while(lo<hi){const m=(lo+hi)>>1;if(D.dates[m]<x)lo=m+1;else hi=m;}
   const i=Math.max(0,lo-(Math.abs(D.dates[lo-1]-x)<Math.abs(D.dates[lo]-x)?1:0));
   html=`<b>${fmtD(D.dates[i])}</b><div><span>Cena</span><span>${fmtP(D.price[i])} USD</span></div>`+(D.real[i]!=null?`<div><span>Realized Price</span><span>${fmtP(D.real[i])}</span></div>`:'')+(D.ma200w[i]!=null?`<div><span>200-tyg. średnia</span><span>${fmtP(D.ma200w[i])}</span></div>`:'');
  }else{const xs=Math.min(x,LAST+MAXH);html=`<b>${fmtD(Math.round(x))} <span style="color:var(--accent)">prognoza</span></b>`+

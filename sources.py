@@ -41,7 +41,7 @@ def _today():
 def fetch_price(since):
     """Bitstamp: dzienne świece BTC/USD od 2011."""
     start = int(pd.Timestamp(since).timestamp()) if since is not None else 1313625600
-    close, vol = {}, {}
+    close, vol, hi, lo = {}, {}, {}, {}
     for _ in range(25):
         j = _get(f"https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=86400&limit=1000&start={start}").json()
         arr = j.get("data", {}).get("ohlc", [])
@@ -50,12 +50,13 @@ def fetch_price(since):
         for c in arr:
             d = _day(c["timestamp"])
             close[d], vol[d] = float(c["close"]), float(c["volume"])
+            hi[d], lo[d] = float(c["high"]), float(c["low"])
         if len(arr) < 1000:
             break
         start = int(arr[-1]["timestamp"]) + 86400
     if not close:
         raise RuntimeError("Bitstamp: brak danych")
-    return {"close": _ser(close), "volume": _ser(vol)}
+    return {"close": _ser(close), "volume": _ser(vol), "high": _ser(hi), "low": _ser(lo)}
 
 
 def fetch_coinmetrics(since):
@@ -102,7 +103,8 @@ def fetch_fng(since):
 
 
 YAHOO = {"spx": "^GSPC", "ndx": "^IXIC", "dxy": "DX-Y.NYB", "vix": "^VIX",
-         "tnx": "^TNX", "irx": "^IRX", "gold": "GC=F"}
+         "tnx": "^TNX", "irx": "^IRX", "gold": "GC=F", "oil": "CL=F", "hyg": "HYG",
+         "usdjpy": "JPY=X", "tlt": "TLT", "eth": "ETH-USD", "usdkrw": "KRW=X", "move": "^MOVE"}
 
 
 def fetch_yahoo(since):
@@ -154,10 +156,93 @@ def fetch_m2(since):
     return {"m2": s.dropna()}
 
 
+WIKI = {"en": "Bitcoin", "de": "Bitcoin", "fr": "Bitcoin", "es": "Bitcoin", "ru": "Биткойн", "ja": "ビットコイン",
+        "ko": "비트코인", "zh": "比特币", "tr": "Bitcoin", "pl": "Bitcoin", "pt": "Bitcoin", "it": "Bitcoin"}
+
+
+def fetch_wiki(since):
+    """Uwaga na Wikipedii (artykuł o Bitcoinie) w wielu językach, jako przybliżenie nastrojów regionów."""
+    start = "20150701" if since is None else (pd.Timestamp(since) - pd.Timedelta(days=5)).strftime("%Y%m%d")
+    end = _today().strftime("%Y%m%d")
+    out = {}
+    for lang, title in WIKI.items():
+        try:
+            u = (f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/{lang}.wikipedia/all-access/user/"
+                 f"{requests.utils.quote(title, safe='')}/daily/{start}/{end}")
+            items = _get(u, timeout=40, tries=2).json()["items"]
+            out[f"wiki_{lang}"] = _ser({pd.Timestamp(i["timestamp"][:8]): i["views"] for i in items})
+        except Exception:
+            pass
+    if not out:
+        raise RuntimeError("Wikipedia: brak danych")
+    return out
+
+
+def fetch_kimchi(since):
+    """BTC/KRW z Upbit (Korea): do liczenia premii kimchi względem ceny w USD i kursu USD/KRW."""
+    cutoff = pd.Timestamp("2017-10-01") if since is None else pd.Timestamp(since) - pd.Timedelta(days=5)
+    d, to = {}, None
+    for _ in range(40):
+        url = "https://api.upbit.com/v1/candles/days?market=KRW-BTC&count=200" + (f"&to={to}" if to else "")
+        arr = _get(url).json()
+        if not arr:
+            break
+        for c in arr:
+            d[pd.Timestamp(c["candle_date_time_utc"][:10])] = float(c["trade_price"])
+        oldest = pd.Timestamp(arr[-1]["candle_date_time_utc"])
+        if oldest <= cutoff:
+            break
+        to = oldest.strftime("%Y-%m-%dT%H:%M:%SZ")
+        time.sleep(0.15)
+    return {"btckrw": _ser(d)}
+
+
+def fetch_deribit(since):
+    """DVOL (implikowana zmienność, od 2021) i stosunek put/call z otwartych pozycji opcji (migawka)."""
+    out = {}
+    end = int(time.time() * 1000)
+    start = 1616000000000 if since is None else int(pd.Timestamp(since).timestamp() * 1000) - 5 * 86400000
+    d = {}
+    while start < end:
+        stop = min(start + 400 * 86400000, end)
+        j = _get("https://www.deribit.com/api/v2/public/get_volatility_index_data?currency=BTC"
+                 f"&start_timestamp={start}&end_timestamp={stop}&resolution=86400").json()
+        for t, o, h, l, c in j["result"]["data"]:
+            d[pd.Timestamp(int(t), unit="ms").normalize()] = c
+        start = stop
+    if d:
+        out["dvol"] = _ser(d)
+    j = _get("https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option", timeout=40).json()
+    put = sum(x["open_interest"] for x in j["result"] if x["instrument_name"].endswith("-P"))
+    call = sum(x["open_interest"] for x in j["result"] if x["instrument_name"].endswith("-C"))
+    if call > 0:
+        out["pcr"] = pd.Series([put / call], index=[_today()])
+    return out
+
+
+def fetch_cftc(since):
+    """CFTC (tygodniowo): pozycjonowanie funduszy lewarowanych na kontraktach BTC na CME."""
+    url = ("https://publicreporting.cftc.gov/resource/gpe5-46if.json?$limit=2000&$order=report_date_as_yyyy_mm_dd%20DESC"
+           "&$where=market_and_exchange_names%20like%20%27BITCOIN%20-%20CHICAGO%25%27")
+    rows = _get(url, timeout=40).json()
+    d = {}
+    for r in rows:
+        try:
+            net = float(r["lev_money_positions_long"]) - float(r["lev_money_positions_short"])
+            d[pd.Timestamp(r["report_date_as_yyyy_mm_dd"][:10])] = net / float(r["open_interest_all"])
+        except (KeyError, ValueError, ZeroDivisionError):
+            continue
+    if not d:
+        raise RuntimeError("CFTC: brak danych")
+    return {"cot_lev": _ser(d)}
+
+
 JOBS = [("Bitstamp (cena)", fetch_price), ("CoinMetrics (MVRV, adresy)", fetch_coinmetrics),
         ("Blockchain.com (hash rate, przychody)", fetch_blockchain), ("Fear & Greed", fetch_fng),
         ("Yahoo (makro, złoto)", fetch_yahoo), ("DefiLlama (stablecoiny)", fetch_stable),
         ("OKX (funding, OI)", fetch_okx), ("CoinGecko (dominacja)", fetch_global),
+        ("Wikipedia (uwaga wg języków)", fetch_wiki), ("Upbit (premia kimchi)", fetch_kimchi),
+        ("Deribit (DVOL, put/call)", fetch_deribit), ("CFTC (pozycje CME)", fetch_cftc),
         ("FRED (M2, opcjonalnie)", fetch_m2)]
 
 

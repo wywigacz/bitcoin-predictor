@@ -1,43 +1,48 @@
-# BTC Predictor (lokalnie)
+# BTC Predictor
 
-System prognozowania rozkładu ceny Bitcoina oparty na opracowaniach z folderu nadrzędnego
-(wskaźniki on-chain, makro, cykle halvingowe). Działa lokalnie w Pythonie, bez kluczy API.
+System prognozowania **rozkładu** ceny Bitcoina (nie jednej liczby) z uczciwą weryfikacją na historii.
+Panel na żywo: https://wywigacz.github.io/bitcoin-predictor/ (aktualizuje się sam co 6 godzin przez GitHub Actions).
 
-## Uruchomienie
+## Uruchomienie lokalne
 
 ```
-python run.py            # aktualizacja przyrostowa + analiza + dashboard
+python run.py            # aktualizacja przyrostowa + analiza + panel (docs/index.html)
 python run.py --full     # pełne pobranie historii od zera
 ```
 
-Wynik: `docs/index.html` (otwórz w przeglądarce), `output/latest.json` (dane maszynowe).
-Dwuklik na `start.bat` robi to samo i otwiera panel.
+Wymaga: pandas, numpy, scipy, scikit-learn, requests (`pip install -r requirements.txt`). Bez kluczy API.
 
-## Samodzielna aktualizacja
+## Co robi
 
-```
-python run.py --install-schedule   # zadanie Harmonogramu Windows, co 6 godzin
-python run.py --remove-schedule
-```
+| Moduł | Zadanie |
+|---|---|
+| `sources.py` | cena, on-chain (MVRV), górnicy, nastroje, makro, stablecoiny, funding, Deribit (DVOL, put/call), CFTC, Upbit (kimchi), Wikipedia w 11 językach |
+| `world.py` | ~120 szeregów ze świata: giełdy i waluty 20+ krajów, towary, uwaga na Wikipedii (polityka, kryzysy), pogoda w regionach kopania, plamy słoneczne, trzęsienia ziemi, księżyc |
+| `events.py`, `events_data.py` | baza wydarzeń: ręczne, kalendarz (FOMC, opcje), włamania (DefiLlama), automatycznie wykrywane szoki rynkowe; atrybucja ruchów i event study |
+| `model.py` | 15 sygnałów (MVRV, 200W, Puell, makro...) -> wskaźnik złożony |
+| `regularity.py` | Hurst (DFA), entropia permutacyjna, iloraz wariancji, grupowanie zmienności, indeks Hilla, EVT (GPD), łańcuch Markowa, filtr Kalmana, periodogram |
+| `scan.py` | skaner setek hipotez z korektą na wielokrotne testy (FDR) + stabilność + test poza próbą |
+| `ensemble.py` | zmienność (EWMA + GJR-GARCH + HAR), HMM, power law; modele: naive, wskaźnik złożony, ridge, analogi kNN, boosting kwantylowy, skaner świata; zespół z bramką istotności |
+| `report.py` | panel HTML (jeden plik, działa offline) |
 
-## Jak to działa
+## Zasady rzetelności
 
-1. **Dane** (`sources.py`): cena (Bitstamp), MVRV i adresy (CoinMetrics), hash rate i przychody górników
-   (Blockchain.com), Fear & Greed, Nasdaq/S&P/DXY/VIX/stopy/złoto (Yahoo), stablecoiny (DefiLlama),
-   funding i open interest (OKX), dominacja BTC (CoinGecko), M2 (FRED, opcjonalnie).
-   Tabela dzienna: `data/daily.csv`. Awaria jednego źródła nie zatrzymuje reszty.
-2. **Sygnały** (`model.py`): 15 wskaźników -> ocena -1..+1, ważone wg wiarygodności z opracowań
-   (wagi w `config.py`). Wynik: wskaźnik złożony (faza rynku).
-3. **Prognoza**: rozkład ceny na 7/30/90/180 dni. Szerokość pasma = zmienność (EWMA) i empiryczne
-   reszty z całej historii. Środek przesuwa regresja wskaźnika złożonego, ale **tylko** gdy test
-   walk-forward (bez podglądania przyszłości) wykaże przewagę nad „bez zmian”.
-4. **Samoocena** (`store.py`): każda prognoza trafia do `data/forecast_log.csv` i po upływie horyzontu
-   jest porównywana z realną ceną (pokrycie pasma 80%, błąd, kierunek).
+- **Walk-forward**: każdy model uczy się wyłącznie na danych znanych w danym dniu; selekcja cech skanera odbywa się wewnątrz walk-forward.
+- **Benchmark „bez zmian”** jest kalibrowany tak samo jak modele; porównanie w pinball loss, test Diebolda-Mariano.
+- **Bramka istotności**: model wchodzi do prognozy dopiero przy p ≤ 0,10 (pełna waga p ≤ 0,03). Dziś żaden jej nie przechodzi, więc środek prognozy = cena bieżąca, a pasmo wynika ze zmienności.
+- **Kalibracja pasma**: ~80% wyników ma mieścić się w P10-P90 (kontrolowane w teście).
+- Audyt: losowe cechy i potasowany cel nie dają przewagi, a celowy wyciek przyszłości daje +34% (potok wykrywa prawdziwy sygnał).
+- Dziennik prognoz (`data/forecast_log.csv`) porównuje każdą prognozę z realną ceną po upływie horyzontu.
 
 ## Ograniczenia
 
-- Brak darmowych źródeł: przepływy do ETF, Google Trends, globalne M2 (używane jest M2 USA z FRED,
-  gdy FRED odpowiada). Sygnały bez danych są pomijane, a wagi przeliczane.
-- Progi sygnałów pochodzą z opracowań i historii (4 cykle), więc test walk-forward ocenia głównie
-  tę część, która uczy się z danych, a nie same progi.
-- To nie jest rekomendacja inwestycyjna.
+- Znane słabości: parametry GARCH/HAR i wagi mieszanki zmienności dobrane na całej próbie (łagodny wyciek, wpływ na skalę, nie kierunek); progi sygnałów pochodzą z opracowań.
+- Brak darmowych źródeł: przepływy do ETF, Google Trends, globalne M2 (FRED bywa niedostępny, sygnał jest wtedy pomijany).
+- Cykle halvingowe to 4 obserwacje. To nie jest rekomendacja inwestycyjna.
+
+## Harmonogram lokalny (opcjonalnie)
+
+```
+python run.py --install-schedule   # zadanie Windows co 6 godzin
+python run.py --remove-schedule
+```
