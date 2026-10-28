@@ -1,0 +1,36 @@
+name: Aktualizacja prognoz
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"      # co 6 godzin
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python run.py
+      - name: Zapisz zmiany
+        run: |
+          git config user.name "btc-predictor-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A data docs output
+          if git diff --cached --quiet; then echo "brak zmian"; else
+            git commit -m "Aktualizacja danych i prognoz $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git pull --rebase origin main
+            git push
+          fi
