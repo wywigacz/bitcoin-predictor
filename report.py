@@ -428,7 +428,8 @@ def why_html(res, ens, E, df):
                      '<li><b>Kierunek ruchu: częściowo.</b> Na części okresów nasze metody okazały się lepsze od zgadywania, ale próba jest mała, więc nie traktuj tego jak pewności.</li>') +
                   '<li><b>Nagłe, rzadkie wydarzenia</b> (upadek giełdy, pandemia) bywają silniejsze od każdej prognozy. Mamy dane z tylko czterech pełnych cykli, a rynek się zmienia (fundusze ETF, firmy kupujące Bitcoina).</li>'
                   '<li>System aktualizuje się sam i sam sprawdza swoje dawne prognozy (sekcja niżej).</li></ul>'))
-    return "".join(f'<article class="card why"><h3 class="ct">{t}</h3>{b}</article>' for t, b in cards)
+    return "".join(f'<details class="card why"{" open" if i < 1 else ""}><summary><h3 class="ct">{t}</h3></summary><div class="why-b">{b}</div></details>'
+                   for i, (t, b) in enumerate(cards))
 
 
 def conclusion_text(ens):
@@ -723,9 +724,9 @@ def _now_str():
     """Godzina odświeżenia w czasie polskim (gdy brak bazy stref czasowych: UTC z oznaczeniem)."""
     try:
         from zoneinfo import ZoneInfo
-        return datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%Y-%m-%d %H:%M (czas polski)")
+        return datetime.now(ZoneInfo("Europe/Warsaw")).strftime("%d.%m.%Y, %H:%M")
     except Exception:
-        return datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        return datetime.utcnow().strftime("%d.%m.%Y, %H:%M UTC")
 
 
 def _pl_decimals(page):
@@ -801,6 +802,7 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None):
             .replace("%%TILES%%", forecast_tiles(res, ens))
             .replace("%%SUMBULLETS%%", summary_bullets(res, ens, E))
             .replace("%%COMP%%", f'{res["composite"]:+.2f}')
+            .replace("%%COMPPOS%%", f'{(res["composite"] + 1) / 2 * 100:.1f}')
             .replace("%%REGIME%%", res["regime"])
             .replace("%%REAL%%", n(fe.get("realprice")))
             .replace("%%MVRV%%", n(fe.get("mvrv"), 2))

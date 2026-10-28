@@ -54,7 +54,7 @@ def update(full=False):
         print("  [uwaga] dziennik świata:", str(e)[:120])
     try:
         if not os.environ.get("BTC_SKIP_NEWS"):                 # pozwala pominąć, gdy nagłówki pobiera inny proces
-            news.update_news(df, budget_s=1800 if full else 240)
+            news.update_news(df, budget_s=1800 if full else 120)
     except Exception as e:
         print("  [uwaga] nagłówki GDELT:", str(e)[:120])
     print("Dane ze świata (rynki, uwaga, pogoda, Słońce) ...")
