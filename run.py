@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 import config as C
+import confirm
 import ensemble
 import events
 import extra as xt
@@ -26,6 +27,7 @@ import report
 import scan
 import sources
 import store
+import whales
 import world
 import worldlog
 
@@ -74,6 +76,11 @@ def update(full=False):
         xt.update()
     except Exception as e:
         print("  [uwaga] dodatkowe sygnały:", str(e)[:120])
+    print("Duzi gracze: fundusze ETF, Strategy, traderzy Hyperliquid ...")
+    try:
+        whales.update()
+    except Exception as e:
+        print("  [uwaga] duzi gracze:", str(e)[:120])
     print("Dane ze świata (rynki, uwaga, pogoda, Słońce) ...")
     try:
         raw_w, fails = world.update_world(full=full or not world.WORLD_CSV.exists())
@@ -107,6 +114,15 @@ def update(full=False):
     print("Regularność układu i skaner zależności ...")
     Rg = regularity.run(df)
     S = scan.run_scan(df, T) if T is not None else None
+    print("Test potwierdzający (duzi gracze, hipotezy spisane z góry) ...")
+    CF = None
+    try:
+        CF = confirm.run(df)
+        print("  " + ", ".join(f'{r["id"]}: {r["status"]}' for r in CF["rows"]))
+        if CF["confirmed"] and T is not None:                    # tylko potwierdzone cechy trafiają do zespołu modeli
+            T = T.join(CF["features"][CF["confirmed"]].add_prefix("w_").add_suffix("|c"))
+    except Exception as e:
+        print("  [uwaga] test potwierdzający:", str(e)[:120])
     print("Zespół modeli (walk-forward) ...")
     ens = ensemble.run(df, E["events"], fr["features"], fr["scores"], fr["composite"], Rg, T)
     res["forecasts"] = ens["forecasts"]
@@ -130,7 +146,9 @@ def update(full=False):
     slim["regularity"] = {k: v for k, v in Rg.items() if k not in ("rolling", "kalman")}
     slim["regularity"]["kalman"] = {k: v for k, v in Rg["kalman"].items() if k != "series"}
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
-    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT)
+    slim["confirm"] = {k: v for k, v in CF.items() if k != "features"} if CF else None
+    C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
+    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF)
     print_summary(res)
     return res
 

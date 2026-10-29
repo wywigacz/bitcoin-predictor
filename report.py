@@ -813,6 +813,80 @@ def extra_html():
     return f'<div class="tiles3">{tl}</div>'
 
 
+def whales_html(CF):
+    """Ruchy dużych graczy (ETF, Strategy, Hyperliquid) i wynik testu potwierdzającego."""
+    import confirm as CO
+    import whales as WH
+    if not WH.OUT.exists():
+        return '<div class="card empty"><b>Brak danych o dużych graczach</b><p class="muted">Pojawią się przy następnej aktualizacji.</p></div>'
+    w = pd.read_csv(WH.OUT, index_col=0, parse_dates=True)
+    mln = lambda v: (f"{v/1e9:+.2f} mld".replace(".", ",") if abs(v) >= 1e9 else f"{v/1e6:+.0f} mln") + " USD"
+    mon = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"]
+    dd = lambda t, y=False: f"{t.day} {mon[t.month - 1]}" + (f" {t.year}" if y else "")
+    tiles = []
+    if "w_etf_flow" in w:
+        f = w["w_etf_flow"].dropna()
+        f5, f20 = f.rolling(5).sum(), f.rolling(20).sum()
+        tiles.append((f"Fundusze ETF: ostatnia sesja ({dd(f.index[-1])})", mln(f.iloc[-1]), float((f < f.iloc[-1]).mean()),
+                      "Ile pieniędzy wpłynęło (plus) lub wypłynęło (minus) ze wszystkich amerykańskich funduszy ETF na bitcoina w jeden dzień."))
+        tiles.append(("Fundusze ETF: ostatni miesiąc (20 sesji)", mln(f20.iloc[-1]), float((f20.dropna() < f20.iloc[-1]).mean()),
+                      (f"Z tego BlackRock (IBIT): {mln(w['w_etf_ibit'].dropna().iloc[-20:].sum())}. " if "w_etf_ibit" in w else "")
+                      + "Badania pokazują, że te pieniądze raczej podążają za ceną, niż ją wyprzedzają."))
+        if "w_etf_aum" in w and w["w_etf_aum"].notna().any():
+            a = w["w_etf_aum"].dropna()
+            tiles.append(("Fundusze ETF: ile mają łącznie", f"{a.iloc[-1]/1e9:.0f} mld USD", None,
+                          f"Wartość bitcoinów trzymanych przez wszystkie fundusze ETF w USA. Ostatnie 5 sesji: {mln(f5.iloc[-1])}."))
+    if "w_mstr_btc" in w:
+        m = w[["w_mstr_btc", "w_mstr_total"]].dropna()
+        last = m.iloc[-1]
+        b90 = m.loc[m.index >= m.index[-1] - pd.Timedelta(days=90), "w_mstr_btc"].sum()
+        verb = "kupiła" if last["w_mstr_btc"] > 0 else "sprzedała"
+        tiles.append(("Strategy (Michael Saylor): stan posiadania", f"{last['w_mstr_total']:,.0f} BTC".replace(",", " "), None,
+                      f"Ostatnio {verb} {abs(last['w_mstr_btc']):,.0f} BTC (raport z {dd(m.index[-1], True)}). ".replace(",", " ")
+                      + f"Bilans 3 miesięcy: {b90:+,.0f} BTC. W 2026 roku stan posiadania firmy kilka razy spadł po sprzedażach; wcześniej sprzedała tylko raz, w grudniu 2022, i od razu dokupiła więcej.".replace(",", " ")))
+    if "w_hl_smart" in w and w["w_hl_smart"].notna().any():
+        s, d = w["w_hl_smart"].dropna(), w["w_hl_dumb"].dropna()
+        side = lambda v: "na wzrost" if v > 0 else "na spadek"
+        tiles.append(("Najlepsi traderzy Hyperliquid", side(s.iloc[-1]), None,
+                      f"{WH.TOP} kont z największym zyskiem w historii. Ich łączna pozycja na BTC to {s.iloc[-1]:+.0f}% całego rynku tej giełdy; "
+                      f"{w['w_hl_smart_longpct'].dropna().iloc[-1]:.0f}% z nich gra na wzrost."))
+        tiles.append(("Najgorsi traderzy Hyperliquid", side(d.iloc[-1]), None,
+                      f"{WH.TOP} kont z największą stratą. Pozycja {d.iloc[-1]:+.0f}% rynku; {w['w_hl_dumb_longpct'].dropna().iloc[-1]:.0f}% gra na wzrost. "
+                      f"Nagrywamy od {dd(s.index[0], True)}, bo giełda nie udostępnia historii."))
+    if "w_hl_fund" in w:
+        h = w["w_hl_fund"].dropna()
+        h7 = h.rolling(7).mean().dropna()
+        tiles.append(("Opłata za grę na wzrost (Hyperliquid, 7 dni)", f"{h7.iloc[-1]:+.1f}% rocznie".replace(".", ","), float((h7 < h7.iloc[-1]).mean()),
+                      "Gdy chętnych do gry na wzrost jest dużo, płacą oni pozostałym. Wysoka opłata oznacza tłok po jednej stronie."))
+    tl = "".join(f'<div class="card tile"><span class="muted sm">{a}</span><b>{b}</b>{_pctbar(c) if c is not None else ""}<span class="muted sm">{d}</span></div>' for a, b, c, d in tiles)
+    tbl = ""
+    if CF:
+        lab = {"confirmed": ("potwierdzona", "pos"), "rejected": ("nie potwierdzona", "muted"), "reverse": ("działa odwrotnie", "neg"), "collect": ("zbieramy dane", "muted")}
+        rows = ""
+        for r in CF["rows"]:
+            st, cls = lab[r["status"]]
+            if r["status"] == "collect":
+                det = f'{r["n"]} z {CO.MIN_DAYS} dni'
+            else:
+                okres = "tydzień" if r["h"] == 7 else "miesiąc"
+                det = (f'korelacja {r["r"]:+.2f}, p = {r["p"]:.2f}. Średni zwrot BTC przez {okres} po najniższych wartościach: {r["ret_lo"]:+.1f}%, '
+                       f'po najwyższych: {r["ret_hi"]:+.1f}%').replace(".", ",").replace(", Średni", ". Średni")
+            rows += f'<tr><td><b>{r["id"]}</b></td><td>{html.escape(r["text"])}</td><td class="{cls}"><b>{st}</b></td><td class="sm muted">{det}</td></tr>'
+        nc = len(CF["confirmed"])
+        verdict = (f"{nc} z {len(CF['rows'])} hipotez przeszło test i zespół modeli używa ich jako dodatkowej cechy." if nc else
+                   "Żadna hipoteza nie przeszła testu, więc ruchy dużych graczy nie zmieniają prognozy. To zgodne z badaniami: kupujący w ETF podążają za ceną, a nie ją wyprzedzają.")
+        thr = f'{CF["alpha_each"]:.3f}'.replace(".", ",")
+        tbl = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Czy patrzenie im na ręce pomaga przewidzieć cenę?</h3>'
+               f'<p class="muted sm" style="margin:0 0 10px">Sześć hipotez spisaliśmy 29 października 2026, zanim zobaczyliśmy wyniki, i nie zmieniamy ich po fakcie. '
+               f'Każda ma z góry wpisany kierunek. Żeby uznać ją za prawdziwą, wynik musi być bardzo mało prawdopodobny jako przypadek '
+               f'(p poniżej {thr}) i powtórzyć się w obu połowach historii. Dane z dnia D wchodzą do testu dopiero od dnia D+1.</p>'
+               + f'<div class="tw"><table class="tbl"><tr><th></th><th>Hipoteza</th><th>Wynik</th><th>Szczegóły</th></tr>{rows}</table></div>'
+               f'<p class="note"><b>Wniosek:</b> {verdict}</p>'
+               f'<p class="muted sm" style="margin:8px 0 0">Źródła: <a href="https://www.tftc.io/bitcoin-etf-flows" target="_blank" rel="noopener">TFTC Bitcoin ETF Tracker</a> (CC BY 4.0), '
+               f'<a href="https://bitbo.io/treasuries/microstrategy/" target="_blank" rel="noopener">Bitbo</a> (transakcje Strategy wg raportów 8-K), publiczne API Hyperliquid.</p></div>')
+    return f'<div class="tiles3">{tl}</div>{tbl}'
+
+
 def markets_html(M, df):
     if not M:
         return '<div class="card empty"><b>Brak danych z rynków akcji i obligacji</b><p class="muted">Pojawią się przy następnej aktualizacji.</p></div>'
@@ -874,7 +948,7 @@ def markets_html(M, df):
             f'<h3 class="ct" style="margin-top:18px">Obligacje</h3><p class="muted sm" style="margin:0 0 8px">Ujemne: gdy obligacje drożeją (ucieczka do bezpieczeństwa), Bitcoin zwykle tanieje.</p>{bnd}</div></div>{an}')
 
 
-def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None):
+def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None):
     fr = res["frame"]
     reg_tiles, reg_verdict = regularity_html(Rg)
     scan_head, scan_body = scan_html(S)
@@ -942,6 +1016,7 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=No
             .replace("%%REGTILES%%", reg2_tiles)
             .replace("%%MARKETS%%", markets_html(MKT, df))
             .replace("%%EXTRA%%", extra_html())
+            .replace("%%WHALES%%", whales_html(CF))
             .replace("%%NSERIES%%", n(S["summary"]["n_series"], 0) if S else "kilkaset")
             .replace("%%REGULARITY%%", reg_tiles)
             .replace("%%REGVERDICT%%", reg_verdict)
