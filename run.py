@@ -24,6 +24,7 @@ import markets
 import news
 import regularity
 import report
+import rv
 import scan
 import sources
 import store
@@ -77,6 +78,11 @@ def update(full=False):
         xt.update()
     except Exception as e:
         print("  [uwaga] dodatkowe sygnały:", str(e)[:120])
+    print("Zmienność z danych 5-minutowych (Binance) ...")
+    try:
+        rv.update()
+    except Exception as e:
+        print("  [uwaga] dane 5-minutowe:", str(e)[:120])
     print("Duzi gracze: fundusze ETF, Strategy, traderzy Hyperliquid ...")
     try:
         whales.update()

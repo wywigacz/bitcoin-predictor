@@ -232,6 +232,61 @@ def entities():
     return pd.DataFrame({k: (v.reindex(idx).ffill() if k != "w_ent_sv_n" else v.reindex(idx)) for k, v in out.items()})
 
 
+def stable_peg():
+    """Dzienne ceny USDT i USDC (DefiLlama, od końca 2020). Premia ponad 1 USD bywa oznaką ucieczki od ryzyka do „cyfrowej gotówki”."""
+    j = _get("https://stablecoins.llama.fi/stablecoinprices").json()
+    rows = [(pd.Timestamp(int(r["date"]), unit="s").normalize(), r["prices"].get("tether"), r["prices"].get("usd-coin")) for r in j if r["date"] > 0]
+    d = pd.DataFrame(rows, columns=["date", "w_usdt_px", "w_usdc_px"]).dropna(how="all", subset=["w_usdt_px", "w_usdc_px"])
+    d = d.groupby("date").last()
+    return d[(d > 0.8) & (d < 1.2)]
+
+
+RR_SNAP = C.DATA_DIR / "options_rr.csv"
+
+
+def options_rr():
+    """Asymetria opcji (risk reversal 25-delta) dla terminu najbliższego 30 dniom: zmienność opcji kupna minus sprzedaży
+    o tej samej „odległości” od ceny. Dodatnia: rynek płaci więcej za zakłady na wzrost. Historii nie ma za darmo,
+    więc zapisujemy zdjęcie przy każdej aktualizacji (od 2026-10-29)."""
+    from scipy.stats import norm
+    res = _get("https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=BTC&kind=option").json()["result"]
+    now = pd.Timestamp.now(tz="UTC").tz_localize(None)
+    rows = []
+    for x in res:
+        try:
+            _, exp, k, cp = x["instrument_name"].split("-")
+            T = (pd.Timestamp(pd.to_datetime(exp, format="%d%b%y")) + pd.Timedelta(hours=8) - now).total_seconds() / (365 * 86400)
+            iv, F = float(x["mark_iv"]) / 100, float(x["underlying_price"])
+            if T <= 3 / 365 or iv <= 0 or F <= 0:
+                continue
+            K = float(k)
+            d1 = (np.log(F / K) + 0.5 * iv * iv * T) / (iv * np.sqrt(T))
+            delta = norm.cdf(d1) if cp == "C" else norm.cdf(d1) - 1
+            rows.append((exp, T, cp, K, F, iv, delta))
+        except (ValueError, KeyError, TypeError):
+            continue
+    O = pd.DataFrame(rows, columns=["exp", "T", "cp", "K", "F", "iv", "delta"])
+    if O.empty:
+        raise RuntimeError("Deribit: brak opcji")
+    exp = O.groupby("exp")["T"].first()
+    e = (exp - 30 / 365).abs().idxmin()
+    E = O[O["exp"] == e]
+    c = E[(E["cp"] == "C") & (E["K"] > E["F"])].sort_values("delta")
+    p = E[(E["cp"] == "P") & (E["K"] < E["F"])].sort_values("delta")
+    if len(c) < 3 or len(p) < 3:
+        raise RuntimeError("Deribit: za mało opcji do interpolacji")
+    ivc = float(np.interp(0.25, c["delta"], c["iv"]))
+    ivp = float(np.interp(-0.25, p["delta"], p["iv"]))
+    atm = float(E.iloc[(E["K"] - E["F"]).abs().argsort()[:2]]["iv"].mean())
+    snap = {"time": now.floor("min"), "rr25": (ivc - ivp) * 100, "iv_c25": ivc * 100, "iv_p25": ivp * 100, "atm": atm * 100,
+            "days": float(exp[e] * 365), "expiry": e}
+    old = pd.read_csv(RR_SNAP, parse_dates=["time"]) if RR_SNAP.exists() else pd.DataFrame()
+    pd.concat([old, pd.DataFrame([snap])], ignore_index=True).to_csv(RR_SNAP, index=False, float_format="%.6g")
+    s = pd.read_csv(RR_SNAP, parse_dates=["time"])
+    g = s.groupby(s["time"].dt.normalize())[["rr25", "atm"]].mean()
+    return g.rename(columns={"rr25": "w_rr25", "atm": "w_atm_iv"})
+
+
 def update(verbose=True):
     old = pd.read_csv(OUT, index_col=0, parse_dates=True) if OUT.exists() else pd.DataFrame()
     parts, status = [], []
@@ -239,7 +294,9 @@ def update(verbose=True):
             ("Hyperliquid: stawka finansowania", lambda: hl_funding(old["w_hl_fund"].dropna().index.max() - pd.Timedelta(days=3)
                                                                     if "w_hl_fund" in old and old["w_hl_fund"].notna().any() else "2023-05-01").rename("w_hl_fund").to_frame()),
             ("Hyperliquid: pozycje najlepszych i najgorszych traderów", lambda: (hl_snapshot(), hl_daily())[1]),
-            ("Portfele rządów USA, Niemiec i Salwadoru (blockchain)", entities)]
+            ("Portfele rządów USA, Niemiec i Salwadoru (blockchain)", entities),
+            ("Ceny stablecoinów USDT i USDC (DefiLlama)", stable_peg),
+            ("Asymetria opcji 25-delta (Deribit, zdjęcie)", options_rr)]
     for name, fn in jobs:
         t0 = time.time()
         try:

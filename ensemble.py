@@ -117,7 +117,91 @@ def vol_models(df):
             sig = np.sqrt(mix)
             info.update({"implied_w": bwi, "qlike_hist_only": float(base), "qlike_with_implied": float(bq), "implied_scale": float(k[-1]),
                          "implied_gain": float(1 - bq / base) if base > 0 else 0.0})
+    sig, rinfo = _rv_blend(df, sig, rv)
+    info.update(rinfo)
     return sig, info
+
+
+def _qlike(target, s2):
+    return float(np.mean(target / s2 - np.log(target / s2) - 1))
+
+
+def _rv_blend(df, sig, target):
+    """Zrealizowana zmienność z danych 5-minutowych (HAR-RV i HAR z semiwariancją i skokami, Corsi 2009; Patton i Sheppard 2015).
+    Uczciwy test: model i waga dopasowane na pierwszych 70% okresu z danymi 5-min, ocena na ostatnich 30%.
+    Do prognozy trafia tylko wtedy, gdy poprawia wynik na tej odłożonej części."""
+    try:
+        import rv as RVM
+        R = RVM.load()
+    except Exception:
+        R = None
+    if R is None or len(R) < 1000:
+        return sig, {}
+    idx = df.index
+    R = R.reindex(idx)
+    lg = lambda s: np.log(s.clip(lower=1e-10))
+    rvd, rvw, rvm = R["rv"], R["rv"].rolling(5, min_periods=4).mean(), R["rv"].rolling(22, min_periods=18).mean()
+    negw = R["rs_neg"].rolling(5, min_periods=4).mean()
+    jw = R["jump"].rolling(5, min_periods=4).mean()
+    X1 = pd.concat([lg(rvd), lg(rvw), lg(rvm)], axis=1)
+    X2 = pd.concat([lg(rvd), lg(rvw), lg(rvm), lg(negw), np.sqrt(jw)], axis=1)
+    y = pd.Series(target, idx)
+    s3 = sig ** 2
+    ok = X2.notna().all(axis=1) & y.notna() & (y > 0) & np.isfinite(s3)
+    pos = np.where(ok.to_numpy())[0]
+    if len(pos) < 800:
+        return sig, {}
+    split = pos[int(len(pos) * 0.7)]
+    tr = ok & (np.arange(len(idx)) < split)
+    te = ok & (np.arange(len(idx)) >= split)
+
+    def fit(X, mask):
+        A = np.column_stack([np.ones(mask.sum()), X[mask].to_numpy()])
+        b = np.linalg.lstsq(A, np.log(y[mask].to_numpy()), rcond=None)[0]
+        res = np.log(y[mask].to_numpy()) - A @ b
+        return b, res.var()
+
+    def pred(X, b, v):
+        A = np.column_stack([np.ones(len(X)), X.to_numpy()])
+        return np.exp(A @ b + 0.5 * v)
+
+    trm, tem = tr.to_numpy(), te.to_numpy()
+    yt = y.to_numpy()
+    best = {"name": None, "w": 0.0, "q_tr": _qlike(yt[trm], s3[trm])}
+    cand = {}
+    for name, X in (("har_rv", X1), ("har_rsj", X2)):
+        b, v = fit(X, tr)
+        p = np.full(len(idx), np.nan)
+        m = X.notna().all(axis=1).to_numpy()
+        p[m] = pred(X[m], b, v)
+        cand[name] = (p, X)
+        for w in np.arange(0.1, 1.01, 0.1):
+            mix = (1 - w) * s3[trm] + w * p[trm]
+            q = _qlike(yt[trm], mix)
+            if q < best["q_tr"]:
+                best = {"name": name, "w": float(w), "q_tr": q}
+    q_old = _qlike(yt[tem], s3[tem])
+    out = {"rv_q_test_old": q_old, "rv_n_test": int(tem.sum()), "rv_test_from": str(idx[split].date())}
+    for name, (p, _) in cand.items():
+        out[f"rv_q_test_{name}"] = _qlike(yt[tem], p[tem])
+    if best["name"] is None:
+        out.update({"rv_w": 0.0, "rv_gain_test": 0.0})
+        return sig, out
+    p = cand[best["name"]][0]
+    q_new = _qlike(yt[tem], (1 - best["w"]) * s3[tem] + best["w"] * p[tem])
+    gain = 1 - q_new / q_old
+    out.update({"rv_model": best["name"], "rv_w": best["w"], "rv_gain_test": float(gain)})
+    if gain <= 0:                                      # na odłożonej części nie pomaga: nie używamy
+        out["rv_w"] = 0.0
+        return sig, out
+    # do bieżącej prognozy: ten sam model dopasowany na całej historii z danymi 5-min, ta sama waga
+    b, v = fit(cand[best["name"]][1], ok)
+    X = cand[best["name"]][1]
+    pf = np.full(len(idx), np.nan)
+    m = X.notna().all(axis=1).to_numpy()
+    pf[m] = pred(X[m], b, v)
+    mixed = np.where(np.isfinite(pf), (1 - best["w"]) * s3 + best["w"] * pf, s3)
+    return pd.Series(np.sqrt(mixed)).ffill().to_numpy(), out
 
 
 # ------------------------------------------------------------------ HMM (3 stany, filtrowany, bez podglądania)
@@ -453,6 +537,31 @@ def combine(out, y, H):
     return ens, ens, wts, alphas, cal, L, out
 
 
+def aci(q, y, lag, gamma=0.05):
+    """Adaptacyjne pasma (Gibbs i Candès 2021, ACI): szerokość pasma rośnie, gdy ostatnio cena częściej z niego wypadała,
+    i maleje, gdy mieściła się częściej niż powinna. Uczy się tylko na prognozach, których termin już minął (opóźnienie lag)."""
+    n = len(q)
+    out = q.copy()
+    ls = 0.0
+    for k in range(n):
+        j = k - lag
+        if j >= 0 and np.isfinite(y[j]) and np.isfinite(q[j]).all():
+            s = np.exp(ls)
+            lo, hi = q[j, 3] + s * (q[j, 1] - q[j, 3]), q[j, 3] + s * (q[j, 5] - q[j, 3])
+            miss = float(not (lo <= y[j] <= hi))
+            ls = float(np.clip(ls + gamma * (miss - 0.2), -0.7, 0.7))
+        if np.isfinite(q[k]).all():
+            out[k] = q[k, [3]] + np.exp(ls) * (q[k] - q[k, [3]])
+    return out
+
+
+def _cov_err(q, y):
+    ok = np.isfinite(y) & np.isfinite(q).all(axis=1)
+    c80 = np.mean((y[ok] >= q[ok, 1]) & (y[ok] <= q[ok, 5]))
+    c90 = np.mean((y[ok] >= q[ok, 0]) & (y[ok] <= q[ok, 6]))
+    return abs(c80 - 0.8) + abs(c90 - 0.9), float(c80), float(c90)
+
+
 def evaluate(out, cens, y, H, L):
     lag = int(np.ceil(H / C.WF_STEP)) + 1
     ok = np.isfinite(y) & np.isfinite(cens).all(axis=1) & np.isfinite(out["naive"]).all(axis=1)
@@ -464,6 +573,13 @@ def evaluate(out, cens, y, H, L):
         t, p = _dm(l0, lm, lag) if m != "naive" else (np.nan, np.nan)
         rows.append({"model": m, "label": LABELS[m], "loss": float(np.nanmean(lm)), "skill": float(1 - np.nanmean(lm) / np.nanmean(l0)),
                      "dm_t": t, "dm_p": p, "cover80": cover(out[m])})
+    # prosta średnia wszystkich metod (1/N): w badaniach często wygrywa z wyszukanym ważeniem („forecast combination puzzle”)
+    eq = np.sort(np.nanmean(np.stack([out[m] for m in MODELS[1:]]), axis=0), axis=1)
+    okq = ok & np.isfinite(eq).all(axis=1)
+    lq = _pinball(np.nan_to_num(y), eq)[okq]
+    tq, pq = _dm(L["naive"][okq], lq, lag)
+    rows.append({"model": "eq", "label": "Prosta średnia metod (1/N)", "loss": float(lq.mean()), "skill": float(1 - lq.mean() / L["naive"][okq].mean()),
+                 "dm_t": tq, "dm_p": pq, "cover80": float(np.mean((y[okq] >= eq[okq, 1]) & (y[okq] <= eq[okq, 5])))})
     le = _pinball(np.nan_to_num(y), cens)[ok]
     t, p = _dm(l0, le, lag)
     rows.append({"model": "ens", "label": LABELS["ens"], "loss": float(le.mean()), "skill": float(1 - le.mean() / l0.mean()),
@@ -491,6 +607,18 @@ def run(df, ev, f, sc, comp, reg=None, world_T=None, conf=None, horizons=None):
         zt[: N - H] = np.log(P[H:] / P[: N - H]) / (sig[: N - H] * np.sqrt(H))
         out, T, y, info = walk_forward(Z, zt, H, N, "comp", knn_cols, Z["comp"].to_numpy(float), df.index, P, Wz, ca)
         cens, ens, wts, alphas, cal, L, out = combine(out, y, H)
+        lag = int(np.ceil(H / C.WF_STEP)) + 1
+        qa = aci(cens, y, lag)
+        e0, c80_0, c90_0 = _cov_err(cens, y)
+        e1, c80_1, c90_1 = _cov_err(qa, y)
+        ok_ = np.isfinite(y) & np.isfinite(cens).all(axis=1) & np.isfinite(qa).all(axis=1)
+        pb0 = float(_pinball(np.nan_to_num(y[ok_]), cens[ok_]).mean())
+        pb1 = float(_pinball(np.nan_to_num(y[ok_]), qa[ok_]).mean())
+        use_aci = e1 < e0 and pb1 <= pb0 * 1.01               # lepsze pokrycie i nie gorsza ogólna trafność
+        aci_info = {"used": bool(use_aci), "cov80_before": c80_0, "cov90_before": c90_0, "cov80_aci": c80_1, "cov90_aci": c90_1,
+                    "pinball_before": pb0, "pinball_aci": pb1}
+        if use_aci:
+            cens = qa
         rows, nok = evaluate(out, cens, y, H, L)
         q = cens[-1]
         scale = sig[-1] * np.sqrt(H)
@@ -498,7 +626,7 @@ def run(df, ev, f, sc, comp, reg=None, world_T=None, conf=None, horizons=None):
         cdf0 = float(np.interp(0.0, q, QS, left=0.0, right=1.0)) if np.all(np.diff(q) > 0) else 0.5
         res["horizons"][H] = {"table": rows, "n": nok, "weights": dict(zip(MODELS, map(float, wts[-1]))), "alpha": float(alphas[-1]),
                               "calibration": float(cal[-1]), "live_z": {m: out[m][-1].tolist() for m in MODELS}, "ens_z": q.tolist(),
-                              "explain": info, "sigma_H": float(sig[-1] * np.sqrt(H))}
+                              "explain": info, "sigma_H": float(sig[-1] * np.sqrt(H)), "aci": aci_info}
         view = np.nanmean([out["comp"][-1], out["ridge"][-1]], axis=0)       # pogląd modeli wskaźników (bez potwierdzonej przewagi)
         vcdf0 = float(np.interp(0.0, view, QS, left=0.0, right=1.0)) if np.all(np.diff(view) > 0) else 0.5
         res["forecasts"].append({"horizon": H, "target": (df.index[-1] + pd.Timedelta(days=H)).strftime("%Y-%m-%d"),

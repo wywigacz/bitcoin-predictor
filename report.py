@@ -130,7 +130,8 @@ def forecast_cards(res):
 
 
 MODEL_LAB = {"naive": "Zgadywanie: cena zostaje taka sama", "comp": "Ocena „tani czy drogi”", "ridge": "Połączenie wielu wskaźników",
-             "knn": "Szukanie podobnych dni z przeszłości", "gbq": "Samouczące się drzewa decyzji", "scan": "Szukanie powiązań na świecie"}
+             "knn": "Szukanie podobnych dni z przeszłości", "gbq": "Samouczące się drzewa decyzji", "scan": "Szukanie powiązań na świecie",
+             "conf": "Sygnały potwierdzone testem z góry (trend)", "eq": "Prosta średnia wszystkich metod (1/N)"}
 LANG = {"en": "Kraje anglojęzyczne", "de": "Niemcy i okolice", "fr": "Francja", "es": "Hiszpania i Ameryka Łac.", "ru": "Rosja",
         "ja": "Japonia", "ko": "Korea Południowa", "zh": "Chiny", "tr": "Turcja", "pl": "Polska", "pt": "Brazylia i Portugalia"}
 
@@ -571,24 +572,44 @@ def touch_html(TC):
     c = TC["calib"]
     cr = "".join(f'<tr><td>{x["lo"] * 100:.0f}–{x["hi"] * 100:.0f}%</td><td>{x["pred"] * 100:.0f}%</td><td>{x["real"] * 100:.0f}%</td><td class="muted">{x["n"]}</td></tr>'
                  for x in c["rows"])
+    import touch as TO
+    pl = lambda v, d=1: f"{v:+.{d}f}".replace(".", ",")
     sk = c["skill"] * 100
     side = c.get("side", {})
+    best = TC.get("best", "base")
     sidetxt = ""
-    if side:
-        sidetxt = (f' Uwaga na jedną słabość: spadek o 10% w miesiąc model przewidywał średnio na {side[-0.1][0] * 100:.0f}%, '
-                   f'a zdarzał się w {side[-0.1][1] * 100:.0f}% miesięcy. Bitcoin w przeszłości częściej rósł, niż zakłada neutralny model, więc szanse spadków są tu raczej zawyżone.')
+    if side:                                            # największy systematyczny błąd wybranego wariantu
+        x = max(side, key=lambda k: abs(side[k][0] - side[k][1]))
+        p_, r_ = side[x]
+        if abs(p_ - r_) > 0.03:
+            co = f'{"wzrost" if float(x) > 0 else "spadek"} o {abs(float(x)) * 100:.0f}% w miesiąc'
+            sidetxt = (f' Największa słabość: {co} model przewidywał średnio na {p_ * 100:.0f}%, a zdarzał się w {r_ * 100:.0f}% miesięcy, '
+                       f'więc tę szansę raczej {"zawyża" if p_ > r_ else "zaniża"}.')
+    var_rows = "".join(f'<tr><td>{"<b>" if m == best else ""}{TO.LABELS[m]}{"</b> (używany)" if m == best else ""}</td>'
+                       f'<td class="{"pos" if v["skill"] > 0 else "neg"}">{pl(v["skill"] * 100)}%</td></tr>'
+                       for m, v in TC.get("variants", {}).items())
+    drift_note = (' Wybrany wariant zakłada, że trend z ostatnich 4 lat (średni dzienny ruch ceny) się utrzyma, dlatego szanse wzrostów są tu wyższe niż spadków. '
+                  'W teście wstecz to założenie poprawiało trafność, ale Bitcoin przez większość swojej historii mocno rósł, a przyszłość nie musi tego powtórzyć.'
+                  if "drift" in best else ' Kierunek jest neutralny: tak samo prawdopodobny wzrost i spadek o ten sam procent.')
+    decomp = (f' Rozbicie wyniku: model lepiej odróżnia sytuacje ryzykowne od spokojnych (rozdzielczość {c["resolution"]:.4f} wobec {c["resolution_base"]:.4f} '
+              f'dla stałej częstości), a jego szanse są też lepiej dopasowane do rzeczywistości (błąd kalibracji {c["reliability"]:.4f} wobec {c["reliability_base"]:.4f}).'
+              ).replace("0.", "0,") if "resolution" in c else ""
     return (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Jaka jest szansa, że cena dotknie danego poziomu?</h3>'
             f'<p class="muted sm" style="margin:0 0 10px">Nie chodzi o to, gdzie cena skończy, tylko czy choć raz dotknie poziomu po drodze. '
             f'Liczymy to z 20 000 symulowanych ścieżek ceny zbudowanych z prawdziwych, historycznych dziennych ruchów Bitcoina, '
-            f'przy dzisiejszej zmienności, która z czasem wraca do normy.</p>'
+            f'przy dzisiejszej zmienności, która z czasem wraca do normy.{drift_note}</p>'
             + f'<div class="tw"><table class="tbl"><tr><th>Poziom</th><th>W 7 dni</th><th>W 30 dni</th><th>W 90 dni</th></tr>{rows}</table></div>'
             f'<h3 class="ct" style="margin-top:18px">Czy te szanse się sprawdzały?</h3>'
             f'<p class="muted sm" style="margin:0 0 10px">Co tydzień od 2016 roku liczyliśmy szansę dotknięcia poziomów ±10% i ±20% w ciągu 30 dni, znając tylko dane do tego dnia, '
             f'i sprawdzaliśmy, co się stało ({c["n"]} prób).</p>'
             f'<div class="tw"><table class="tbl"><tr><th>Gdy model mówił</th><th>Średnio mówił</th><th>Naprawdę się zdarzyło</th><th>Prób</th></tr>{cr}</table></div>'
             f'<p class="note"><b>Wniosek:</b> w porównaniu ze stałą historyczną częstością (np. „+10% w miesiąc zdarza się w mniej więcej połowie miesięcy”), '
-            f'liczoną tylko z przeszłości, model jest dokładniejszy o {sk:.1f}% (wynik Briera). To niewielka, ale uczciwa przewaga: '
-            f'bierze się z tego, że dzisiejsza zmienność mówi coś o najbliższych tygodniach.{sidetxt}</p></div>').replace(f"{sk:.1f}%", f"{sk:.1f}%".replace(".", ","))
+            f'liczoną tylko z przeszłości, model jest dokładniejszy o {pl(sk)}% (wynik Briera). To niewielka, ale uczciwa przewaga: '
+            f'bierze się z tego, że dzisiejsza zmienność mówi coś o najbliższych tygodniach.{decomp}{sidetxt}</p>'
+            + (f'<p class="muted sm" style="margin:10px 0 6px">Sprawdziliśmy kilka sposobów symulacji tym samym testem; w tabeli przewaga każdego nad stałą częstością. '
+               f'Wybór najlepszego z kilku na tym samym teście jest lekko optymistyczny, dlatego pokazujemy wszystkie.</p>'
+               f'<div class="tw"><table class="tbl"><tr><th>Sposób symulacji</th><th>Przewaga</th></tr>{var_rows}</table></div>' if var_rows else "")
+            + '</div>')
 
 
 def short_html(ens):
@@ -625,13 +646,17 @@ def history_track_html(ens):
         c80, c90 = e["cover80"] * 100, (e.get("cover90") or 0) * 100
         sk = e["skill"] * 100
         cls = lambda x, t: "pos" if abs(x - t) <= 4 else "neg"
+        a = v.get("aci") or {}
+        atxt = (f'tak (było {a["cov80_before"] * 100:.0f}% / {a["cov90_before"] * 100:.0f}%)' if a.get("used") else "nie") if a else "–"
         rows += (f'<tr><td><b>{H} dni</b></td><td>{v["n"]}</td><td class="{cls(c80, 80)}">{c80:.0f}%</td><td class="{cls(c90, 90)}">{c90:.0f}%</td>'
-                 f'<td class="{"pos" if sk > 0.5 else "muted"}">{sk:+.1f}%</td></tr>')
+                 f'<td class="{"pos" if sk > 0.5 else "muted"}">{sk:+.1f}%</td><td class="muted">{atxt}</td></tr>')
     return (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Rozliczenie na historii: czy pasma mówią prawdę?</h3>'
             f'<p class="muted sm" style="margin:0 0 10px">Dla każdego tygodnia od ok. 2015 roku model zrobił prognozę, znając tylko dane do tego dnia, '
             f'a potem porównaliśmy ją z tym, co się stało. Uczciwy model powinien mieć cenę w paśmie 80% w ok. 80% przypadków i w paśmie 90% w ok. 90%. '
-            f'Ostatnia kolumna mówi, o ile cały zespół metod jest lepszy od samego założenia „bez zmian, typowe wahania” (0% = tak samo dobry).</p>'
-            f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Prognoz</th><th>W paśmie 80%</th><th>W paśmie 90%</th><th>Przewaga nad „bez zmian”</th></tr>{rows}</table></div></div>')
+            f'Kolumna „Przewaga” mówi, o ile cały zespół metod jest lepszy od samego założenia „bez zmian, typowe wahania” (0% = tak samo dobry). '
+            f'Ostatnia: czy używamy adaptacyjnych pasm (ACI), które same się poszerzają, gdy cena ostatnio częściej z nich wypadała. '
+            f'Włączamy je tylko tam, gdzie poprawiają zgodność pasm z rzeczywistością.</p>'
+            f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Prognoz</th><th>W paśmie 80%</th><th>W paśmie 90%</th><th>Przewaga nad „bez zmian”</th><th>Pasma adaptacyjne</th></tr>{rows}</table></div></div>')
 
 
 def track_html(stats, ens=None):
@@ -985,8 +1010,10 @@ def whales_html(CF, df=None, ens=None):
             if r["status"] == "collect":
                 det = f'{r["n"]} z {CO.MIN_DAYS} dni'
             else:
-                okres = "tydzień" if r["h"] == 7 else "miesiąc"
-                det = (f'korelacja {r["r"]:+.2f}, p = {r["p"]:.2f}. Średni zwrot BTC przez {okres} po najniższych wartościach: {r["ret_lo"]:+.1f}%, '
+                okres = {1: "następny dzień", 7: "tydzień"}.get(r["h"], "miesiąc")
+                fp = lambda p: f"{p:.4f}" if p < 0.01 else f"{p:.2f}"
+                hac = f', z poprawką Neweya-Westa {fp(r["p_hac"])}' if r.get("p_hac") is not None else ""
+                det = (f'korelacja {r["r"]:+.2f}, p = {fp(r["p"])}{hac}. Średni zwrot BTC przez {okres} po najniższych wartościach: {r["ret_lo"]:+.1f}%, '
                        f'po najwyższych: {r["ret_hi"]:+.1f}%').replace(".", ",").replace(", Średni", ". Średni")
             rows += f'<tr><td><b>{r["id"]}</b></td><td>{html.escape(r["text"])}</td><td class="{cls}"><b>{st}</b></td><td class="sm muted">{det}</td></tr>'
         nc = len(CF["confirmed"])
@@ -1018,13 +1045,15 @@ def whales_html(CF, df=None, ens=None):
                           f'({cs * 100:+.1f}%), więc teraz nie wpływa na wynik. Korelacja jest prawdziwa, ale za słaba, żeby przesunąć cały rozkład cen.</p>').replace(f"{cs * 100:+.1f}%", f"{cs * 100:+.1f}%".replace(".", ","))
             else:
                 decay += 'Model używa go jako jednej z metod i tylko wtedy, gdy w teście „jak na żywo” poprawia prognozę.</p>'
-        thr2 = f'{min(r["alpha"] for r in CF["rows"] if r.get("batch") == 2):.4f}'.replace(".", ",") if any(r.get("batch") == 2 for r in CF["rows"]) else ""
-        tbl = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Testy potwierdzające: duzi gracze i trend</h3>'
+        batches = sorted({r.get("batch", 1) for r in CF["rows"]})
+        thrs = ", ".join(f'{min(r["alpha"] for r in CF["rows"] if r.get("batch", 1) == b):.4f}'.replace(".", ",") + f" w partii {b}" for b in batches)
+        tbl = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Testy potwierdzające: duzi gracze, trend, opcje i stablecoiny</h3>'
                f'<p class="muted sm" style="margin:0 0 10px">Hipotezy spisaliśmy 29 października 2026, zanim zobaczyliśmy wyniki, i nie zmieniamy ich po fakcie. '
-               f'Partia 1 (H1–H6) dotyczy dużych graczy, partia 2 (H7–H10) efektów najlepiej opisanych w badaniach naukowych nad Bitcoinem. '
+               f'Partia 1 (H1–H6) dotyczy dużych graczy, partia 2 (H7–H10) efektów najlepiej opisanych w badaniach nad Bitcoinem, '
+               f'partia 3 (H11–H13) pomysłów z przeglądu badań: stablecoinów i rynku opcji. '
                f'Każda hipoteza ma z góry wpisany kierunek. Żeby uznać ją za prawdziwą, wynik musi być bardzo mało prawdopodobny jako przypadek '
-               f'(p poniżej {thr} w partii 1{", " + thr2 + " w partii 2" if thr2 else ""}) i powtórzyć się w obu połowach historii. '
-               f'Dane z dnia D wchodzą do testu dopiero od dnia D+1.</p>'
+               f'(p poniżej {thrs}) i powtórzyć się w obu połowach historii. Dane z dnia D wchodzą do testu dopiero od dnia D+1. '
+               f'Dla porównania podajemy też p z poprawką Neweya-Westa na nakładające się zwroty: zwykle wychodzi niższe, czyli nasza metoda jest ostrożniejsza.</p>'
                + f'<div class="tw"><table class="tbl"><tr><th></th><th>Hipoteza</th><th>Wynik</th><th>Szczegóły</th></tr>{rows}</table></div>'
                f'<p class="note"><b>Wniosek:</b> {verdict}</p>{decay}'
                f'<p class="muted sm" style="margin:8px 0 0">Źródła: <a href="https://www.tftc.io/bitcoin-etf-flows" target="_blank" rel="noopener">TFTC Bitcoin ETF Tracker</a> (wolna licencja Creative Commons), '
@@ -1173,7 +1202,12 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=No
             .replace("%%REGROWS%%", reg_rows)
             .replace("%%VOLW%%", f"średnia ruchów z ostatnich tygodni {ens['vol']['weights']['ewma']*100:.0f}%, model, w którym duże wahania \"zarażają\" kolejne dni {ens['vol']['weights']['garch']*100:.0f}%, model oparty na dziennej rozpiętości cen {ens['vol']['weights']['har']*100:.0f}%"
                      + (f"; do tego, z wagą {ens['vol']['implied_w']*100:.0f}%, wahania wyceniane na giełdzie opcji Deribit, co poprawia trafność prognozy wahań o {ens['vol']['implied_gain']*100:.1f}%".replace(".", ",")
-                        if ens['vol'].get('implied_w') else ""))
+                        if ens['vol'].get('implied_w') else "")
+                     + (f". Sprawdziliśmy też zmienność liczoną z danych co 5 minut (Binance, od 2017): na odłożonych danych od {ens['vol']['rv_test_from']} "
+                        + (f"poprawiła prognozę wahań o {ens['vol']['rv_gain_test']*100:.1f}%, więc jest w mieszance z wagą {ens['vol']['rv_w']*100:.0f}%".replace(".", ",")
+                           if ens['vol'].get('rv_w') else
+                           f"pogorszyła prognozę wahań o {abs(ens['vol'].get('rv_gain_test', 0))*100:.1f}%, więc jej nie używamy".replace(".", ","))
+                        if ens['vol'].get('rv_test_from') else ""))
             .replace("%%TRACK%%", track_html(stats, ens))
             .replace("%%CORR%%", corr_html(res["corr90"]))
             .replace("%%PILLS%%", pills)
