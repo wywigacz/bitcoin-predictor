@@ -813,7 +813,7 @@ def extra_html():
     return f'<div class="tiles3">{tl}</div>'
 
 
-def whales_html(CF):
+def whales_html(CF, df=None):
     """Ruchy dużych graczy (ETF, Strategy, Hyperliquid) i wynik testu potwierdzającego."""
     import confirm as CO
     import whales as WH
@@ -859,6 +859,37 @@ def whales_html(CF):
         tiles.append(("Opłata za grę na wzrost (Hyperliquid, 7 dni)", f"{h7.iloc[-1]:+.1f}% rocznie".replace(".", ","), float((h7 < h7.iloc[-1]).mean()),
                       "Gdy chętnych do gry na wzrost jest dużo, płacą oni pozostałym. Wysoka opłata oznacza tłok po jednej stronie."))
     tl = "".join(f'<div class="card tile"><span class="muted sm">{a}</span><b>{b}</b>{_pctbar(c) if c is not None else ""}<span class="muted sm">{d}</span></div>' for a, b, c, d in tiles)
+    # znane portfele (rządy): sald nie da się podrobić, każdy adres zweryfikowany z raportami
+    ent, epi = [], ""
+    sp = lambda v: f"{v:,.0f}".replace(",", " ")
+    if "w_ent_us" in w and w["w_ent_us"].notna().any():
+        u = w["w_ent_us"].dropna()
+        moved = u.index[u.diff().abs() > 1]
+        ent.append(("Rząd USA: bitcoiny z Silk Road", f"{sp(u.iloc[-1])} BTC",
+                    f"Monety ukradzione z czarnego rynku Silk Road i odebrane hakerowi w listopadzie 2020. "
+                    + (f"Ostatni duży ruch: {dd(moved[-1], True)}." if len(moved) else "Nikt ich nie ruszył od 2020 roku.")
+                    + " Ich sprzedaż byłaby dużą podażą; od 2025 r. USA deklarują ich trzymanie w rezerwie strategicznej."))
+    if "w_ent_sv" in w and w["w_ent_sv"].notna().any():
+        v = w["w_ent_sv"].dropna()
+        na = int(w["w_ent_sv_n"].dropna().iloc[-1]) if "w_ent_sv_n" in w and w["w_ent_sv_n"].notna().any() else None
+        ent.append(("Salwador: rezerwa państwa", f"{sp(v.iloc[-1])} BTC",
+                    f"W ostatnich 30 dniach {v.iloc[-1] - v.iloc[-31]:+.0f} BTC (kraj kupuje po 1 BTC dziennie). "
+                    + (f"Liczymy z {na} adresów, które Salwador sam publikuje." if na else "")))
+    if "w_ent_de" in w and w["w_ent_de"].notna().any():
+        g = w["w_ent_de"].dropna()
+        ent.append(("Niemcy: bitcoiny przejęte przez policję", f"{sp(g.iloc[-1])} BTC",
+                    f"W styczniu 2024 policja przejęła {sp(g.max())} BTC od twórców pirackiego serwisu Movie2k i sprzedała je w 3,5 tygodnia (19 cze – 12 lip 2024)."))
+        if df is not None:
+            c = df["close"]
+            a0, a1 = c.asof(pd.Timestamp("2024-06-18")), c.asof(pd.Timestamp("2024-07-12"))
+            lo = c["2024-06-18":"2024-07-12"]
+            a2 = c.asof(pd.Timestamp("2024-08-11"))
+            epi = (f'<p class="note"><b>Co robiła cena, gdy Niemcy sprzedawali?</b> Od dnia przed pierwszą sprzedażą do jej końca: {(a1 / a0 - 1) * 100:+.0f}%, '
+                   f'z dołkiem {(lo.min() / a0 - 1) * 100:+.0f}% ({dd(lo.idxmin())}). W miesiąc po zakończeniu: {(a2 / a1 - 1) * 100:+.0f}%. '
+                   f'W tym samym czasie Mt. Gox zaczął oddawać bitcoiny wierzycielom, więc nie da się oddzielić obu wpływów. '
+                   f'To jeden epizod, a z jednego przypadku nie wyciągamy reguły.</p>')
+    if ent:
+        tl += "".join(f'<div class="card tile"><span class="muted sm">{a}</span><b>{b}</b><span class="muted sm">{d}</span></div>' for a, b, d in ent)
     tbl = ""
     if CF:
         lab = {"confirmed": ("potwierdzona", "pos"), "rejected": ("nie potwierdzona", "muted"), "reverse": ("działa odwrotnie", "neg"), "collect": ("zbieramy dane", "muted")}
@@ -882,9 +913,10 @@ def whales_html(CF):
                f'(p poniżej {thr}) i powtórzyć się w obu połowach historii. Dane z dnia D wchodzą do testu dopiero od dnia D+1.</p>'
                + f'<div class="tw"><table class="tbl"><tr><th></th><th>Hipoteza</th><th>Wynik</th><th>Szczegóły</th></tr>{rows}</table></div>'
                f'<p class="note"><b>Wniosek:</b> {verdict}</p>'
-               f'<p class="muted sm" style="margin:8px 0 0">Źródła: <a href="https://www.tftc.io/bitcoin-etf-flows" target="_blank" rel="noopener">TFTC Bitcoin ETF Tracker</a> (CC BY 4.0), '
-               f'<a href="https://bitbo.io/treasuries/microstrategy/" target="_blank" rel="noopener">Bitbo</a> (transakcje Strategy wg raportów 8-K), publiczne API Hyperliquid.</p></div>')
-    return f'<div class="tiles3">{tl}</div>{tbl}'
+               f'<p class="muted sm" style="margin:8px 0 0">Źródła: <a href="https://www.tftc.io/bitcoin-etf-flows" target="_blank" rel="noopener">TFTC Bitcoin ETF Tracker</a> (wolna licencja Creative Commons), '
+               f'<a href="https://bitbo.io/treasuries/microstrategy/" target="_blank" rel="noopener">Bitbo</a> (transakcje Strategy wg raportów 8-K), publiczne API Hyperliquid, salda portfeli z blockchaina (mempool.space; adresy Salwadoru z bitcoin.gob.sv). '
+               f'Mt. Gox nie ma kafelka: jego bitcoiny są rozrzucone po wielu adresach, których pełnej listy nie da się wiarygodnie ustalić.</p></div>')
+    return f'<div class="tiles3">{tl}</div>{epi}{tbl}'
 
 
 def markets_html(M, df):
@@ -1016,7 +1048,7 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=No
             .replace("%%REGTILES%%", reg2_tiles)
             .replace("%%MARKETS%%", markets_html(MKT, df))
             .replace("%%EXTRA%%", extra_html())
-            .replace("%%WHALES%%", whales_html(CF))
+            .replace("%%WHALES%%", whales_html(CF, df))
             .replace("%%NSERIES%%", n(S["summary"]["n_series"], 0) if S else "kilkaset")
             .replace("%%REGULARITY%%", reg_tiles)
             .replace("%%REGVERDICT%%", reg_verdict)

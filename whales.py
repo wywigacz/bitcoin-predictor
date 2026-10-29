@@ -160,13 +160,86 @@ def hl_daily():
     return out
 
 
+# Znane portfele: każdy adres sprawdzony na blockchainie z publicznymi raportami (data, kwota) przed dodaniem (2026-10-29).
+ENTITIES = {
+    # rząd USA: adres, na który 3.11.2020 trafiło 69 369 BTC odebranych hakerowi „Individual X” (DOJ; Arkham)
+    "w_ent_us": ["bc1qa5wkgaew2dkv56kfvj49j0av5nml45x9ek9hz6"],
+    # Niemcy, policja BKA (sprawa Movie2k): 5 portfeli źródłowych (łącznie 49 859 BTC, raporty: 49 858) i 2 portfele przekaźnikowe;
+    # sprzedaż 19.06–12.07.2024 (Arkham, CoinDesk, heise)
+    "w_ent_de": ["bc1qss8z846643h8ct2e8rzkwwslrt3ns874vtv93w", "bc1qgrvchamnmmaancn3vwea6elnvexpylzh30rhjz", "bc1qnwft8re0tkkyekd4nl34dqvgmwx3zsfyxfadfg",
+                 "bc1q9agtd4sk5r06vqcsy3ewdr0dslf03dlj3agtva", "bc1q93njc4we4s088a2nz6c9e6vthc5h4ake53rxmd",
+                 "bc1qq0l4jgg9rcm3puhhfwaz4c9t8hdee8hfz6738z", "bc1q0unygz3ddt8x0v33s6ztxkrnw0s0tl7zk4yxwd"],
+}
+ENT_CACHE = C.DATA_DIR / "entities_cache.json"
+MP = "https://mempool.space/api"
+
+
+def _mp(path):
+    for i in range(6):
+        try:
+            r = requests.get(MP + path, headers=UA, timeout=30)
+            if r.status_code == 200:
+                return r.json()
+            if r.status_code == 429:
+                time.sleep(10 * (i + 1))
+                continue
+        except requests.RequestException:
+            pass
+        time.sleep(3)
+    raise RuntimeError(f"mempool.space: {path[:60]}")
+
+
+def _addr_deltas(a, known):
+    """Nowe transakcje adresu (od najnowszych, do pierwszej już znanej): {txid: [czas, zmiana salda w BTC]}."""
+    new, last = {}, None
+    while True:
+        page = _mp(f"/address/{a}/txs/chain" + (f"/{last}" if last else ""))
+        stop = False
+        for t in page:
+            if t["txid"] in known:
+                stop = True
+                break
+            d = sum(v["value"] for v in t["vout"] if v.get("scriptpubkey_address") == a) \
+                - sum(v["prevout"]["value"] for v in t["vin"] if (v.get("prevout") or {}).get("scriptpubkey_address") == a)
+            new[t["txid"]] = [t["status"]["block_time"], d / 1e8]
+        if stop or len(page) < 25:
+            return new
+        last = page[-1]["txid"]
+        time.sleep(1.2)
+
+
+def entities():
+    import json
+    cache = json.loads(ENT_CACHE.read_text(encoding="utf-8")) if ENT_CACHE.exists() else {}
+    out = {}
+    for name, addrs in ENTITIES.items():
+        ev = []
+        for a in addrs:
+            c = cache.setdefault(a, {})
+            c.update(_addr_deltas(a, c))
+            ev += list(c.values())
+            time.sleep(1)
+        s = pd.Series([d for _, d in ev], index=pd.to_datetime([t for t, _ in ev], unit="s").normalize())
+        out[name] = s.groupby(level=0).sum().sort_index().cumsum().clip(lower=0)
+    ENT_CACHE.write_text(json.dumps(cache), encoding="utf-8")
+    # Salwador sam publikuje wszystkie adresy rezerwy (Narodowe Biuro Bitcoina, bitcoin.gob.sv, przez API mempool.space)
+    j = _get("https://bitcoin.gob.sv/api/v1/wallet/ONBTC").json()
+    ev = [(t["time"], t["value"] / 1e8) for w in j.values() for t in w.get("transactions", [])]
+    s = pd.Series([d for _, d in ev], index=pd.to_datetime([t for t, _ in ev], unit="s").normalize())
+    out["w_ent_sv"] = s.groupby(level=0).sum().sort_index().cumsum()
+    out["w_ent_sv_n"] = pd.Series(len(j), index=[out["w_ent_sv"].index[-1]], dtype=float)
+    idx = pd.date_range(min(v.index.min() for v in out.values()), pd.Timestamp.now().normalize())
+    return pd.DataFrame({k: (v.reindex(idx).ffill() if k != "w_ent_sv_n" else v.reindex(idx)) for k, v in out.items()})
+
+
 def update(verbose=True):
     old = pd.read_csv(OUT, index_col=0, parse_dates=True) if OUT.exists() else pd.DataFrame()
     parts, status = [], []
     jobs = [("ETF na bitcoina (TFTC)", etf), ("Strategy: zakupy i sprzedaże BTC (Bitbo)", strategy),
             ("Hyperliquid: stawka finansowania", lambda: hl_funding(old["w_hl_fund"].dropna().index.max() - pd.Timedelta(days=3)
                                                                     if "w_hl_fund" in old and old["w_hl_fund"].notna().any() else "2023-05-01").rename("w_hl_fund").to_frame()),
-            ("Hyperliquid: pozycje najlepszych i najgorszych traderów", lambda: (hl_snapshot(), hl_daily())[1])]
+            ("Hyperliquid: pozycje najlepszych i najgorszych traderów", lambda: (hl_snapshot(), hl_daily())[1]),
+            ("Portfele rządów USA, Niemiec i Salwadoru (blockchain)", entities)]
     for name, fn in jobs:
         t0 = time.time()
         try:
