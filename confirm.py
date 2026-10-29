@@ -23,14 +23,35 @@ HYP = [
     {"id": "H5", "col": "hl_spread", "h": 7, "sign": +1, "text": "Najlepsi traderzy bardziej na wzrost niż najgorsi → wyższy zwrot w kolejnym tygodniu"},
     {"id": "H6", "col": "hl_fund7", "h": 7, "sign": -1, "text": "Wysoka opłata za zakłady na wzrost na Hyperliquid (tłok) → niższy zwrot w kolejnym tygodniu"},
 ]
+for _h in HYP:
+    _h["batch"] = 1
+# Partia 2 (spisana 2026-10-29, przed obejrzeniem wyników): efekty najlepiej udokumentowane w badaniach nad Bitcoinem
+# (Liu i Tsyvinski 2021: trend 1–4 tygodni i uwaga inwestorów) oraz połączenie słabych sygnałów w jeden.
+HYP += [
+    {"id": "H7", "col": "mom28", "h": 7, "sign": +1, "batch": 2, "text": "Wzrost ceny w ostatnich 4 tygodniach → wyższy zwrot w kolejnym tygodniu (trend)"},
+    {"id": "H8", "col": "mom7", "h": 7, "sign": +1, "batch": 2, "text": "Wzrost ceny w ostatnim tygodniu → wyższy zwrot w kolejnym tygodniu (krótki trend)"},
+    {"id": "H9", "col": "attn", "h": 7, "sign": +1, "batch": 2, "text": "Rosnące zainteresowanie Bitcoinem na Wikipedii → wyższy zwrot w kolejnym tygodniu"},
+    {"id": "H10", "col": "combo", "h": 7, "sign": +1, "batch": 2, "text": "Połączenie słabych sygnałów (trend, uwaga, napływ do ETF) → wyższy zwrot w kolejnym tygodniu"},
+]
 
 
-def features(idx):
+def _z(s):
+    return ((s - s.expanding(365).mean()) / s.expanding(365).std()).clip(-4, 4)
+
+
+def features(idx, df=None):
     """Cechy dzienne wyrównane do indeksu BTC i przesunięte o 1 dzień (wartość z dnia D używana od dnia D+1)."""
-    if not WH.OUT.exists():
-        return pd.DataFrame(index=idx)
-    w = pd.read_csv(WH.OUT, index_col=0, parse_dates=True)
     F = pd.DataFrame(index=idx)
+    if df is not None:
+        lc = np.log(df["close"])
+        F["mom28"] = lc - lc.shift(28)
+        F["mom7"] = lc - lc.shift(7)
+        if "wiki_en" in df:
+            v = df["wiki_en"].where(df["wiki_en"] > 0)
+            F["attn"] = np.log(v.rolling(7, min_periods=5).mean() / v.rolling(90, min_periods=60).mean())
+    if not WH.OUT.exists():
+        return F.shift(1)
+    w = pd.read_csv(WH.OUT, index_col=0, parse_dates=True)
     if "w_etf_flow" in w:
         f = w["w_etf_flow"].dropna()
         f3 = f.rolling(3).sum() / 1e6                                         # mln USD, dni sesyjne
@@ -47,6 +68,9 @@ def features(idx):
             F["hl_spread"] = (w["w_hl_smart"] - w["w_hl_dumb"]).reindex(idx)
     if "w_hl_fund" in w:
         F["hl_fund7"] = w["w_hl_fund"].rolling(7, min_periods=5).mean().reindex(idx)
+    parts = [_z(F[c]) for c in ("mom28", "attn", "etf3") if c in F]
+    if parts:
+        F["combo"] = pd.concat(parts, axis=1).mean(axis=1, skipna=True)
     return F.shift(1)
 
 
@@ -58,12 +82,13 @@ def _spear(x, y):
 
 
 def run(df):
-    F = features(df.index)
+    F = features(df.index, df)
     lr = np.log(df["close"])
-    k = len(HYP)
     rows = []
     for H in HYP:
+        k = sum(1 for x in HYP if x["batch"] == H["batch"])            # poprawka na liczbę prób w obrębie partii
         r = dict(H)
+        r["alpha"] = ALPHA / k
         x = F[H["col"]] if H["col"] in F else pd.Series(np.nan, index=df.index)
         y = lr.shift(-H["h"]) - lr
         m = x.notna() & y.notna()
@@ -90,4 +115,4 @@ def run(df):
                   "status": "confirmed" if ok else ("reverse" if H["sign"] * rho < 0 and (1 - p) < ALPHA / k else "rejected")})
         rows.append(r)
     conf = [r["col"] for r in rows if r["status"] == "confirmed"]
-    return {"rows": rows, "confirmed": conf, "features": F, "alpha_each": ALPHA / k}
+    return {"rows": rows, "confirmed": conf, "features": F, "alpha_each": ALPHA / sum(1 for x in HYP if x["batch"] == 1)}

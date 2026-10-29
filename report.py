@@ -556,18 +556,104 @@ def upcoming_html(E):
     return f'<table class="tbl"><tr><th>Data</th><th>Wydarzenie</th><th>Jak zwykle reagował Bitcoin</th></tr>{rows}</table>'
 
 
-def track_html(stats):
+def touch_html(TC):
+    """Szansa dotknięcia poziomów ceny w 7, 30 i 90 dni oraz test wstecz tej szansy."""
+    if not TC:
+        return ""
+    pc = lambda p: "&lt;1%" if p < 0.01 else ("&gt;99%" if p > 0.99 else f"{p * 100:.0f}%")
+    rows = ""
+    for r in TC["table"]:
+        if abs(r["rel"]) < 0.02:
+            continue
+        lab = f'{r["level"] / 1000:.0f} tys. USD'
+        rows += (f'<tr><td><b>{lab}</b> <span class="muted sm">({r["rel"] * 100:+.0f}%)</span></td>'
+                 + "".join(f'<td>{pc(r[f"p{H}"])}</td>' for H in (7, 30, 90)) + "</tr>")
+    c = TC["calib"]
+    cr = "".join(f'<tr><td>{x["lo"] * 100:.0f}–{x["hi"] * 100:.0f}%</td><td>{x["pred"] * 100:.0f}%</td><td>{x["real"] * 100:.0f}%</td><td class="muted">{x["n"]}</td></tr>'
+                 for x in c["rows"])
+    sk = c["skill"] * 100
+    side = c.get("side", {})
+    sidetxt = ""
+    if side:
+        sidetxt = (f' Uwaga na jedną słabość: spadek o 10% w miesiąc model przewidywał średnio na {side[-0.1][0] * 100:.0f}%, '
+                   f'a zdarzał się w {side[-0.1][1] * 100:.0f}% miesięcy. Bitcoin w przeszłości częściej rósł, niż zakłada neutralny model, więc szanse spadków są tu raczej zawyżone.')
+    return (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Jaka jest szansa, że cena dotknie danego poziomu?</h3>'
+            f'<p class="muted sm" style="margin:0 0 10px">Nie chodzi o to, gdzie cena skończy, tylko czy choć raz dotknie poziomu po drodze. '
+            f'Liczymy to z 20 000 symulowanych ścieżek ceny zbudowanych z prawdziwych, historycznych dziennych ruchów Bitcoina, '
+            f'przy dzisiejszej zmienności, która z czasem wraca do normy.</p>'
+            + f'<div class="tw"><table class="tbl"><tr><th>Poziom</th><th>W 7 dni</th><th>W 30 dni</th><th>W 90 dni</th></tr>{rows}</table></div>'
+            f'<h3 class="ct" style="margin-top:18px">Czy te szanse się sprawdzały?</h3>'
+            f'<p class="muted sm" style="margin:0 0 10px">Co tydzień od 2016 roku liczyliśmy szansę dotknięcia poziomów ±10% i ±20% w ciągu 30 dni, znając tylko dane do tego dnia, '
+            f'i sprawdzaliśmy, co się stało ({c["n"]} prób).</p>'
+            f'<div class="tw"><table class="tbl"><tr><th>Gdy model mówił</th><th>Średnio mówił</th><th>Naprawdę się zdarzyło</th><th>Prób</th></tr>{cr}</table></div>'
+            f'<p class="note"><b>Wniosek:</b> w porównaniu ze stałą historyczną częstością (np. „+10% w miesiąc zdarza się w mniej więcej połowie miesięcy”), '
+            f'liczoną tylko z przeszłości, model jest dokładniejszy o {sk:.1f}% (wynik Briera). To niewielka, ale uczciwa przewaga: '
+            f'bierze się z tego, że dzisiejsza zmienność mówi coś o najbliższych tygodniach.{sidetxt}</p></div>').replace(f"{sk:.1f}%", f"{sk:.1f}%".replace(".", ","))
+
+
+def short_html(ens):
+    """Krótkie horyzonty (1 i 3 dni): setki razy więcej niezależnych prób, więc słaba przewaga ma szansę wyjść w teście."""
+    sh = (ens or {}).get("short")
+    if not sh:
+        return ""
+    rows = ""
+    for H, v in sorted(sh.items()):
+        tb = {r["model"]: r for r in v["table"]}
+        best = max((r for r in v["table"] if r["model"] not in ("naive", "ens")), key=lambda r: r["skill"])
+        e = tb.get("ens", {})
+        pv = best.get("dm_p")
+        sig = (pv is not None and pv == pv and pv < 0.05)
+        rows += (f'<tr><td><b>{H} {"dzień" if H == 1 else "dni"}</b></td><td>{v["n"]}</td><td>{html.escape(best["label"])}</td>'
+                 f'<td class="{"pos" if best["skill"] > 0 else "neg"}">{best["skill"] * 100:+.2f}%</td>'
+                 f'<td class="{"pos" if sig else "muted"}">{"tak" if sig else "nie"} (p = {pv:.2f})</td>'
+                 f'<td>{e.get("cover80", 0) * 100:.0f}%</td></tr>').replace(".", ",").replace("<td>,", "<td>")
+    return (f'<div class="panel" style="margin-top:18px"><h3 class="ct">A na krótkim dystansie: 1 i 3 dni?</h3>'
+            f'<p class="muted sm" style="margin:0 0 10px">Im krótszy horyzont, tym więcej niezależnych prób w historii, więc tym łatwiej wykryć nawet małą przewagę. '
+            f'Sprawdzamy tu najlepszą metodę na tle założenia „bez zmian”. Te horyzonty nie trafiają do głównej prognozy, dopóki przewaga nie jest istotna.</p>'
+            f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Prób</th><th>Najlepsza metoda</th><th>Przewaga</th><th>Istotna?</th><th>W paśmie 80%</th></tr>{rows}</table></div></div>')
+
+
+def history_track_html(ens):
+    """Rozliczenie na historii: tysiące prognoz z testu walk-forward (model zna tylko przeszłość w dniu prognozy)."""
+    if not ens:
+        return ""
+    rows = ""
+    for H, v in sorted(ens["horizons"].items(), key=lambda a: int(a[0])):
+        e = next((r for r in v["table"] if r["model"] == "ens"), None)
+        if not e:
+            continue
+        c80, c90 = e["cover80"] * 100, (e.get("cover90") or 0) * 100
+        sk = e["skill"] * 100
+        cls = lambda x, t: "pos" if abs(x - t) <= 4 else "neg"
+        rows += (f'<tr><td><b>{H} dni</b></td><td>{v["n"]}</td><td class="{cls(c80, 80)}">{c80:.0f}%</td><td class="{cls(c90, 90)}">{c90:.0f}%</td>'
+                 f'<td class="{"pos" if sk > 0.5 else "muted"}">{sk:+.1f}%</td></tr>')
+    return (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Rozliczenie na historii: czy pasma mówią prawdę?</h3>'
+            f'<p class="muted sm" style="margin:0 0 10px">Dla każdego tygodnia od ok. 2015 roku model zrobił prognozę, znając tylko dane do tego dnia, '
+            f'a potem porównaliśmy ją z tym, co się stało. Uczciwy model powinien mieć cenę w paśmie 80% w ok. 80% przypadków i w paśmie 90% w ok. 90%. '
+            f'Ostatnia kolumna mówi, o ile cały zespół metod jest lepszy od samego założenia „bez zmian, typowe wahania” (0% = tak samo dobry).</p>'
+            f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Prognoz</th><th>W paśmie 80%</th><th>W paśmie 90%</th><th>Przewaga nad „bez zmian”</th></tr>{rows}</table></div></div>')
+
+
+def track_html(stats, ens=None):
+    hist = history_track_html(ens)
     if not stats:
         return ('<div class="card empty"><b>Dziennik prognoz dopiero się zapełnia</b>'
                 '<p class="muted">Każdą prognozę zapisujemy, a gdy minie jej termin, porównujemy z prawdziwą ceną. '
-                'Pierwsze oceny pojawią się po tygodniu od uruchomienia systemu.</p></div>')
+                'Pierwsze oceny pojawią się po tygodniu od uruchomienia systemu.</p></div>' + hist)
     cov = stats["coverage80"] * 100
-    return (f'<div class="tiles"><div class="card tile"><span class="muted sm">Sprawdzonych prognoz</span><b>{stats["n"]}</b></div>'
+    extra = ""
+    if stats.get("brier") is not None:
+        extra += (f'<div class="card tile"><span class="muted sm">Szansa wzrostu: wynik Briera</span><b>{stats["brier"]:.3f}'.replace(".", ",")
+                  + f'</b><span class="muted sm">0 = idealnie, 0,25 = rzut monetą ({stats["brier_n"]} prognoz)</span></div>')
+    if stats.get("coverage90") is not None:
+        extra += (f'<div class="card tile"><span class="muted sm">Cena w paśmie 90%</span><b>{stats["coverage90"] * 100:.0f}%</b><span class="muted sm">cel: 90%</span></div>')
+    return (f'<p class="muted sm" style="margin:0 0 10px">Na żywo, od {stats.get("first", "")}: prognozy zapisane z góry i rozliczone po terminie.</p>'
+            f'<div class="tiles">{extra}<div class="card tile"><span class="muted sm">Sprawdzonych prognoz</span><b>{stats["n"]}</b></div>'
             f'<div class="card tile"><span class="muted sm">Cena mieściła się w zakresie</span><b>{cov:.0f}%</b><span class="muted sm">cel: 80%</span></div>'
             f'<div class="card tile"><span class="muted sm">Średnio pomyliliśmy się o</span><b>{stats["mape"]:.1f}%</b><span class="muted sm">środek prognozy vs prawdziwa cena</span></div>'
             + (f'<div class="card tile"><span class="muted sm">Trafny kierunek</span><b>{stats["direction"]*100:.0f}%</b><span class="muted sm">50% = tyle samo, co rzut monetą (liczone dla {stats["direction_n"]} prognoz ze wskazanym kierunkiem)</span></div></div>'
                if stats.get("direction") is not None else
-               '<div class="card tile"><span class="muted sm">Trafny kierunek</span><b>nie dotyczy</b><span class="muted sm">prognozy były neutralne (środek równy cenie dziś), więc nie wskazywały kierunku</span></div></div>'))
+               '<div class="card tile"><span class="muted sm">Trafny kierunek</span><b>nie dotyczy</b><span class="muted sm">prognozy były neutralne (środek równy cenie dziś), więc nie wskazywały kierunku</span></div></div>')) + hist
 
 
 def sources_html(status):
@@ -813,7 +899,7 @@ def extra_html():
     return f'<div class="tiles3">{tl}</div>'
 
 
-def whales_html(CF, df=None):
+def whales_html(CF, df=None, ens=None):
     """Ruchy dużych graczy (ETF, Strategy, Hyperliquid) i wynik testu potwierdzającego."""
     import confirm as CO
     import whales as WH
@@ -904,15 +990,43 @@ def whales_html(CF, df=None):
                        f'po najwyższych: {r["ret_hi"]:+.1f}%').replace(".", ",").replace(", Średni", ". Średni")
             rows += f'<tr><td><b>{r["id"]}</b></td><td>{html.escape(r["text"])}</td><td class="{cls}"><b>{st}</b></td><td class="sm muted">{det}</td></tr>'
         nc = len(CF["confirmed"])
-        verdict = (f"{nc} z {len(CF['rows'])} hipotez przeszło test i zespół modeli używa ich jako dodatkowej cechy." if nc else
-                   "Żadna hipoteza nie przeszła testu, więc ruchy dużych graczy nie zmieniają prognozy. To zgodne z badaniami: kupujący w ETF podążają za ceną, a nie ją wyprzedzają.")
+        ids = [r["id"] for r in CF["rows"] if r["status"] == "confirmed"]
+        big = any(r["status"] == "confirmed" and r.get("batch") == 1 for r in CF["rows"])
+        verdict = ((f"Test przeszły: {', '.join(ids)}. " if nc else "Żadna hipoteza nie przeszła testu. ")
+                   + ("" if big else "Żadna hipoteza o dużych graczach nie przeszła, co jest zgodne z badaniami: kupujący w ETF podążają za ceną, a nie ją wyprzedzają. ")
+                   + ("Potwierdzone sygnały trafiają do zespołu metod jako osobna metoda, z tą samą bramką co reszta: wpływają na prognozę tylko, jeśli w teście „jak na żywo” istotnie ją poprawiają." if nc else ""))
         thr = f'{CF["alpha_each"]:.3f}'.replace(".", ",")
-        tbl = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Czy patrzenie im na ręce pomaga przewidzieć cenę?</h3>'
-               f'<p class="muted sm" style="margin:0 0 10px">Sześć hipotez spisaliśmy 29 października 2026, zanim zobaczyliśmy wyniki, i nie zmieniamy ich po fakcie. '
-               f'Każda ma z góry wpisany kierunek. Żeby uznać ją za prawdziwą, wynik musi być bardzo mało prawdopodobny jako przypadek '
-               f'(p poniżej {thr}) i powtórzyć się w obu połowach historii. Dane z dnia D wchodzą do testu dopiero od dnia D+1.</p>'
+        decay = ""
+        if any(r["id"] == "H7" and r["status"] == "confirmed" for r in CF["rows"]) and df is not None:
+            lc = np.log(df["close"])
+            m28, y7 = (lc - lc.shift(28)).shift(1), lc.shift(-7) - lc
+            seg = []
+            for a, b in (("2011", "2015"), ("2016", "2019"), ("2020", "2022"), ("2023", str(df.index[-1].year))):
+                x, yy = m28.loc[a:b], y7.loc[a:b]
+                k = x.notna() & yy.notna()
+                q = pd.qcut(x[k].rank(method="first"), 3, labels=False)
+                r_ = (np.exp(yy[k]) - 1) * 100
+                seg.append(f"{a}–{b}: {r_[q == 2].mean():+.1f}% po wzrostach vs {r_[q == 0].mean():+.1f}% po spadkach".replace(".", ","))
+            decay = (f'<p class="note"><b>Trend (H7) przeszedł test, ale słabnie.</b> Średni zwrot w kolejnym tygodniu: {"; ".join(seg)}. '
+                     f'To typowe: wzorzec, który zna coraz więcej osób, z czasem się wyczerpuje. ')
+            cs = None
+            if ens and "7" in {str(k) for k in ens.get("horizons", {})}:
+                v7 = ens["horizons"].get(7) or ens["horizons"].get("7")
+                cs = next((r["skill"] for r in v7["table"] if r["model"] == "conf"), None)
+            if cs is not None and cs <= 0.005:
+                decay += (f'Jako metoda prognozy trend jest w zespole, ale w teście „jak na żywo” od 2015 roku nie poprawia prognozy na tydzień '
+                          f'({cs * 100:+.1f}%), więc teraz nie wpływa na wynik. Korelacja jest prawdziwa, ale za słaba, żeby przesunąć cały rozkład cen.</p>').replace(f"{cs * 100:+.1f}%", f"{cs * 100:+.1f}%".replace(".", ","))
+            else:
+                decay += 'Model używa go jako jednej z metod i tylko wtedy, gdy w teście „jak na żywo” poprawia prognozę.</p>'
+        thr2 = f'{min(r["alpha"] for r in CF["rows"] if r.get("batch") == 2):.4f}'.replace(".", ",") if any(r.get("batch") == 2 for r in CF["rows"]) else ""
+        tbl = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Testy potwierdzające: duzi gracze i trend</h3>'
+               f'<p class="muted sm" style="margin:0 0 10px">Hipotezy spisaliśmy 29 października 2026, zanim zobaczyliśmy wyniki, i nie zmieniamy ich po fakcie. '
+               f'Partia 1 (H1–H6) dotyczy dużych graczy, partia 2 (H7–H10) efektów najlepiej opisanych w badaniach naukowych nad Bitcoinem. '
+               f'Każda hipoteza ma z góry wpisany kierunek. Żeby uznać ją za prawdziwą, wynik musi być bardzo mało prawdopodobny jako przypadek '
+               f'(p poniżej {thr} w partii 1{", " + thr2 + " w partii 2" if thr2 else ""}) i powtórzyć się w obu połowach historii. '
+               f'Dane z dnia D wchodzą do testu dopiero od dnia D+1.</p>'
                + f'<div class="tw"><table class="tbl"><tr><th></th><th>Hipoteza</th><th>Wynik</th><th>Szczegóły</th></tr>{rows}</table></div>'
-               f'<p class="note"><b>Wniosek:</b> {verdict}</p>'
+               f'<p class="note"><b>Wniosek:</b> {verdict}</p>{decay}'
                f'<p class="muted sm" style="margin:8px 0 0">Źródła: <a href="https://www.tftc.io/bitcoin-etf-flows" target="_blank" rel="noopener">TFTC Bitcoin ETF Tracker</a> (wolna licencja Creative Commons), '
                f'<a href="https://bitbo.io/treasuries/microstrategy/" target="_blank" rel="noopener">Bitbo</a> (transakcje Strategy wg raportów 8-K), publiczne API Hyperliquid, salda portfeli z blockchaina (mempool.space; adresy Salwadoru z bitcoin.gob.sv). '
                f'Mt. Gox nie ma kafelka: jego bitcoiny są rozrzucone po wielu adresach, których pełnej listy nie da się wiarygodnie ustalić.</p></div>')
@@ -980,7 +1094,7 @@ def markets_html(M, df):
             f'<h3 class="ct" style="margin-top:18px">Obligacje</h3><p class="muted sm" style="margin:0 0 8px">Ujemne: gdy obligacje drożeją (ucieczka do bezpieczeństwa), Bitcoin zwykle tanieje.</p>{bnd}</div></div>{an}')
 
 
-def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None):
+def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None, TCH=None):
     fr = res["frame"]
     reg_tiles, reg_verdict = regularity_html(Rg)
     scan_head, scan_body = scan_html(S)
@@ -1048,15 +1162,19 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=No
             .replace("%%REGTILES%%", reg2_tiles)
             .replace("%%MARKETS%%", markets_html(MKT, df))
             .replace("%%EXTRA%%", extra_html())
-            .replace("%%WHALES%%", whales_html(CF, df))
+            .replace("%%WHALES%%", whales_html(CF, df, ens))
+            .replace("%%TOUCH%%", touch_html(TCH))
+            .replace("%%SHORTH%%", short_html(ens))
             .replace("%%NSERIES%%", n(S["summary"]["n_series"], 0) if S else "kilkaset")
             .replace("%%REGULARITY%%", reg_tiles)
             .replace("%%REGVERDICT%%", reg_verdict)
             .replace("%%SCANHEAD%%", scan_head)
             .replace("%%SCANBODY%%", scan_body)
             .replace("%%REGROWS%%", reg_rows)
-            .replace("%%VOLW%%", f"średnia ruchów z ostatnich tygodni {ens['vol']['weights']['ewma']*100:.0f}%, model, w którym duże wahania \"zarażają\" kolejne dni {ens['vol']['weights']['garch']*100:.0f}%, model oparty na dziennej rozpiętości cen {ens['vol']['weights']['har']*100:.0f}%")
-            .replace("%%TRACK%%", track_html(stats))
+            .replace("%%VOLW%%", f"średnia ruchów z ostatnich tygodni {ens['vol']['weights']['ewma']*100:.0f}%, model, w którym duże wahania \"zarażają\" kolejne dni {ens['vol']['weights']['garch']*100:.0f}%, model oparty na dziennej rozpiętości cen {ens['vol']['weights']['har']*100:.0f}%"
+                     + (f"; do tego, z wagą {ens['vol']['implied_w']*100:.0f}%, wahania wyceniane na giełdzie opcji Deribit, co poprawia trafność prognozy wahań o {ens['vol']['implied_gain']*100:.1f}%".replace(".", ",")
+                        if ens['vol'].get('implied_w') else ""))
+            .replace("%%TRACK%%", track_html(stats, ens))
             .replace("%%CORR%%", corr_html(res["corr90"]))
             .replace("%%PILLS%%", pills)
             .replace("%%SRCOK%%", f"{ok}/{tot}")

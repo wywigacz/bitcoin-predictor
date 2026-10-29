@@ -27,6 +27,7 @@ import report
 import scan
 import sources
 import store
+import touch
 import whales
 import world
 import worldlog
@@ -119,12 +120,22 @@ def update(full=False):
     try:
         CF = confirm.run(df)
         print("  " + ", ".join(f'{r["id"]}: {r["status"]}' for r in CF["rows"]))
-        if CF["confirmed"] and T is not None:                    # tylko potwierdzone cechy trafiają do zespołu modeli
-            T = T.join(CF["features"][CF["confirmed"]].add_prefix("w_").add_suffix("|c"))
     except Exception as e:
         print("  [uwaga] test potwierdzający:", str(e)[:120])
+    conf = None
+    if CF and CF["confirmed"]:                                   # tylko potwierdzone sygnały trafiają do osobnej metody w zespole
+        conf = pd.concat([confirm._z(CF["features"][c]) for c in CF["confirmed"]], axis=1).mean(axis=1)
     print("Zespół modeli (walk-forward) ...")
-    ens = ensemble.run(df, E["events"], fr["features"], fr["scores"], fr["composite"], Rg, T)
+    SHORT = [1, 3]                                               # krótkie horyzonty: tylko test, czy da się pokonać rzut monetą
+    ens = ensemble.run(df, E["events"], fr["features"], fr["scores"], fr["composite"], Rg, T, conf, SHORT + C.HORIZONS)
+    ens["short"] = {h: ens["horizons"].pop(h) for h in SHORT}
+    ens["forecasts"] = [f for f in ens["forecasts"] if f["horizon"] not in SHORT]
+    print("Szanse dotknięcia poziomów ceny ...")
+    TCH = None
+    try:
+        TCH = touch.run(df, ensemble.vol_models(df)[0])
+    except Exception as e:
+        print("  [uwaga] szanse dotknięcia:", str(e)[:120])
     res["forecasts"] = ens["forecasts"]
     for f in res["forecasts"]:
         f["pred_z"] = 0.0
@@ -148,7 +159,9 @@ def update(full=False):
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
     slim["confirm"] = {k: v for k, v in CF.items() if k != "features"} if CF else None
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
-    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF)
+    slim["touch"] = {k: v for k, v in TCH.items()} if TCH else None
+    C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
+    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF, TCH)
     print_summary(res)
     return res
 

@@ -23,10 +23,10 @@ import model as M
 
 warnings.filterwarnings("ignore")
 QS = np.array([0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95])
-MODELS = ["naive", "comp", "ridge", "knn", "gbq", "scan"]
+MODELS = ["naive", "comp", "ridge", "knn", "gbq", "scan", "conf"]
 LABELS = {"naive": "Bez zmian (benchmark)", "comp": "Wskaźnik złożony", "ridge": "Regresja grzbietowa",
           "knn": "Analogi historyczne", "gbq": "Gradient boosting kwantylowy", "scan": "Skaner świata (selekcja cech)",
-          "ens": "Zespół (ensemble)"}
+          "conf": "Potwierdzone sygnały (test z góry)", "ens": "Zespół (ensemble)"}
 GENESIS = pd.Timestamp("2009-01-03")
 
 
@@ -95,6 +95,28 @@ def vol_models(df):
     sig = np.sqrt(cand @ np.array(bw))
     sig = pd.Series(sig).ffill().to_numpy()
     info = {"weights": dict(zip(["ewma", "garch", "har"], map(float, bw))), "qlike": float(best)}
+    # zmienność z opcji (DVOL, Deribit, od 2021): rynek opcji wycenia przyszłe wahania. Opcje zwykle je przeszacowują,
+    # więc skalę liczymy tylko z przeszłości: mediana (zrealizowana wariancja 5 dni) / (DVOL sprzed 5 dni)^2
+    if "dvol" in df and df["dvol"].notna().sum() > 400:
+        dv2 = (df["dvol"].ffill(limit=3).to_numpy(float) / 100) ** 2 / 365
+        known_rv = pd.Series(r ** 2).rolling(5).mean().to_numpy()                 # znana w dniu t
+        ratio = pd.Series(known_rv / pd.Series(dv2).shift(5).to_numpy())
+        k = ratio.where(np.isfinite(ratio) & (ratio > 0)).expanding(200).median().to_numpy()
+        iv = k * dv2
+        s3 = sig ** 2
+        ok2 = sel & np.isfinite(iv)
+        if ok2.sum() > 300:
+            base = np.mean(rv[ok2] / s3[ok2] - np.log(rv[ok2] / s3[ok2]) - 1)
+            bq, bwi = base, 0.0
+            for wi in np.arange(0.1, 1.01, 0.1):
+                s2 = (1 - wi) * s3[ok2] + wi * iv[ok2]
+                q = np.mean(rv[ok2] / s2 - np.log(rv[ok2] / s2) - 1)
+                if q < bq:
+                    bq, bwi = q, float(wi)
+            mix = np.where(np.isfinite(iv), (1 - bwi) * s3 + bwi * iv, s3)
+            sig = np.sqrt(mix)
+            info.update({"implied_w": bwi, "qlike_hist_only": float(base), "qlike_with_implied": float(bq), "implied_scale": float(k[-1]),
+                         "implied_gain": float(1 - bq / base) if base > 0 else 0.0})
     return sig, info
 
 
@@ -255,7 +277,7 @@ def _ridge_fit(X, z, lam=0.25):
     return mx, mz, beta
 
 
-def walk_forward(Zv, zt, H, N, comp_col, knn_cols, Zraw_comp, dates=None, P=None, Wz=None):
+def walk_forward(Zv, zt, H, N, comp_col, knn_cols, Zraw_comp, dates=None, P=None, Wz=None, conf=None):
     """Zwraca {model: (nT,7)}, T (indeksy), y (nT), info (wyjaśnienie bieżącej prognozy)."""
     info = {}
     Wa = np.nan_to_num(Wz.to_numpy(float), nan=0.0) if Wz is not None else None
@@ -286,6 +308,17 @@ def walk_forward(Zv, zt, H, N, comp_col, knn_cols, Zraw_comp, dates=None, P=None
         b = np.cov(cp, z)[0, 1] / (cp.var() * (1 + C.SLOPE_RIDGE) + 1e-12)
         res = z - b * (cp - cp.mean())
         out["comp"][j] = b * (comp_a[t] - cp.mean()) + _wq(res - _wq(res, wt, [0.5])[0], wt, QS)
+        # sygnały, które przeszły test potwierdzający (spisany z góry): ta sama prosta regresja, tylko na znanych w t danych
+        if conf is not None and np.isfinite(conf[t]) and np.isfinite(conf[pool]).sum() >= C.MIN_TRAIN:
+            okc = np.isfinite(conf[pool])
+            cx, cz, cw = conf[pool][okc], z[okc], wt[okc]
+            bc = np.cov(cx, cz)[0, 1] / (cx.var() * (1 + C.SLOPE_RIDGE) + 1e-12)
+            rc = cz - bc * (cx - cx.mean())
+            out["conf"][j] = bc * (conf[t] - cx.mean()) + _wq(rc - _wq(rc, cw, [0.5])[0], cw, QS)
+            if j == len(T_all) - 1:
+                info["conf"] = {"beta": float(bc), "x": float(conf[t] - cx.mean())}
+        else:
+            out["conf"][j] = out["naive"][j]
         # ridge
         mx, mz, beta = _ridge_fit(Xp, z)
         res = z - (mz + (Xp - mx) @ beta)
@@ -439,7 +472,7 @@ def evaluate(out, cens, y, H, L):
 
 
 # ------------------------------------------------------------------ całość
-def run(df, ev, f, sc, comp, reg=None, world_T=None):
+def run(df, ev, f, sc, comp, reg=None, world_T=None, conf=None, horizons=None):
     N = len(df)
     P = df["close"].to_numpy(float)
     sig, vinfo = vol_models(df)
@@ -452,10 +485,11 @@ def run(df, ev, f, sc, comp, reg=None, world_T=None):
         Wz = pd.DataFrame({c: _expz(world_T[c], 365) for c in keep}, index=df.index).clip(-4, 4)
     knn_cols = ["comp", "mom90", "volpct", "powerlaw", "hmm_hi", "cycle"]
     res = {"vol": vinfo, "horizons": {}, "forecasts": []}
-    for H in C.HORIZONS:
+    ca = None if conf is None else conf.reindex(df.index).to_numpy(float)
+    for H in (horizons or C.HORIZONS):
         zt = np.full(N, np.nan)
         zt[: N - H] = np.log(P[H:] / P[: N - H]) / (sig[: N - H] * np.sqrt(H))
-        out, T, y, info = walk_forward(Z, zt, H, N, "comp", knn_cols, Z["comp"].to_numpy(float), df.index, P, Wz)
+        out, T, y, info = walk_forward(Z, zt, H, N, "comp", knn_cols, Z["comp"].to_numpy(float), df.index, P, Wz, ca)
         cens, ens, wts, alphas, cal, L, out = combine(out, y, H)
         rows, nok = evaluate(out, cens, y, H, L)
         q = cens[-1]
