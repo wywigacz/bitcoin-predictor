@@ -70,8 +70,9 @@ def _why(d, x, t, p, w_now, target, action, amt_pln):
     learn = (f"wagi wyuczone na ostatnim roku: regularne {pc(p['regularne'])}, ryzyko {pc(p['ryzyko'])}, trend {pc(p['trend'])} "
              f"(najlepiej radzi sobie „{best}”)")
     head = f"Cel {pc(target)} w BTC, było {pc(w_now)}. "
-    act = {"KUP": f"Kupuję BTC za {amt_pln:,.0f} zł.", "SPRZEDAJ": f"Sprzedaję BTC za {amt_pln:,.0f} zł.",
-           "TRZYMAJ": f"Różnica mniejsza niż {BAND * 100:.0f} pkt proc., więc nic nie robię (oszczędzam prowizję)."}[action].replace(",", " ")
+    kw = f"{amt_pln:,.0f}".replace(",", " ")
+    act = {"KUP": f"Kupuję BTC za {kw} zł.", "SPRZEDAJ": f"Sprzedaję BTC za {kw} zł.",
+           "TRZYMAJ": f"Różnica mniejsza niż {BAND * 100:.0f} pkt proc., więc nic nie robię (oszczędzam prowizję)."}[action]
     return head + act + " Dlaczego: " + risk + "; " + trend + "; " + learn + "."
 
 
