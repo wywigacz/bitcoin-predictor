@@ -39,11 +39,12 @@ def _today():
 
 
 def fetch_price(since):
-    """Bitstamp: dzienne świece BTC/USD od 2011."""
+    """Bitstamp: dzienne świece BTC/USD od 2011. Tylko zamknięte dni UTC: bez tego parametru giełda zwraca też
+    bieżącą, niedokończoną świecę, a wtedy prognoza i dziennik liczyłyby się od ceny z środka dnia."""
     start = int(pd.Timestamp(since).timestamp()) if since is not None else 1313625600
     close, vol, hi, lo = {}, {}, {}, {}
     for _ in range(25):
-        j = _get(f"https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=86400&limit=1000&start={start}").json()
+        j = _get(f"https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=86400&limit=1000&start={start}&exclude_current_candle=true").json()
         arr = j.get("data", {}).get("ohlc", [])
         if not arr:
             break
@@ -235,7 +236,9 @@ def fetch_cftc(since):
             continue
     if not d:
         raise RuntimeError("CFTC: brak danych")
-    return {"cot_lev": _ser(d)}
+    s = _ser(d)
+    s.index = s.index + pd.Timedelta(days=3)          # stan z wtorku CFTC publikuje w piątek: bez podglądania przyszłości
+    return {"cot_lev": s}
 
 
 def fetch_coinbase(since):

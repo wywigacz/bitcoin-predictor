@@ -24,6 +24,7 @@ CHECKS = {
     "dvol": lambda d: _in(d["dvol"], 10, 400),
     "btckrw": lambda d: _in(d["btckrw"] / d["usdkrw"].ffill(limit=5) / d["close"], 0.6, 2.0) if "usdkrw" in d else d["btckrw"] > 0,
     "pcr": lambda d: _in(d["pcr"], 0.05, 20),
+    "cot_lev": lambda d: _in(d["cot_lev"], -1, 1),           # pozycja netto jako ułamek otwartych pozycji
     "fng": lambda d: _in(d["fng"], 0, 100),
 }
 

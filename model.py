@@ -13,7 +13,7 @@ import pandas as pd
 import config as C
 
 QS = [0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95]
-FFILL = {"m2": 21, "fng": 3, "funding": 3, "oi": 3, "dom": 3}
+FFILL = {"m2": 21, "fng": 3, "funding": 3, "oi": 3, "dom": 3, "cot_lev": 10}     # CFTC co tydzień: odczyt obowiązuje do następnego
 
 
 def _col(df, name):
