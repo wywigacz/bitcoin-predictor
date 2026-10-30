@@ -62,7 +62,7 @@ def vol_models(df):
     r = np.log(c).diff().to_numpy().copy()
     r[0] = 0.0
     ew = np.sqrt((pd.Series(r ** 2).ewm(alpha=C.EWMA_ALPHA, adjust=False, min_periods=30).mean()).to_numpy())
-    hn, _ = garch_gjr(r * 100)
+    hn, gjr = garch_gjr(r * 100)
     sg = np.sqrt(hn) / 100
     # HAR na estymatorze Parkinsona (wysoki/niski dzień)
     hi, lo = df["high"].to_numpy(float), df["low"].to_numpy(float)
@@ -94,7 +94,8 @@ def vol_models(df):
                 best, bw = q, wv
     sig = np.sqrt(cand @ np.array(bw))
     sig = pd.Series(sig).ffill().to_numpy()
-    info = {"weights": dict(zip(["ewma", "garch", "har"], map(float, bw))), "qlike": float(best)}
+    info = {"weights": dict(zip(["ewma", "garch", "har"], map(float, bw))), "qlike": float(best),
+            "phi": float(np.clip(gjr[1] + gjr[3] + 0.5 * gjr[2], 0.5, 0.999))}     # trwałość szoków zmienności (GJR-GARCH)
     # zmienność z opcji (DVOL, Deribit, od 2021): rynek opcji wycenia przyszłe wahania. Opcje zwykle je przeszacowują,
     # więc skalę liczymy tylko z przeszłości: mediana (zrealizowana wariancja 5 dni) / (DVOL sprzed 5 dni)^2
     if "dvol" in df and df["dvol"].notna().sum() > 400:
@@ -621,6 +622,58 @@ def evaluate(out, cens, y, H, L):
 
 
 # ------------------------------------------------------------------ całość
+def horizon_sigma(sig, H, phi, s_lr):
+    """Zmienność na H dni, która wraca do normy (Diebold i in. 1998): zamiast sigma_t·√H średnia z prognoz wariancji
+    na kolejne dni, gdy dzisiejsza odchyłka od normy wygasa w tempie phi. Norma = mediana z ostatnich 2 lat (tylko przeszłość)."""
+    k = np.arange(1, H + 1)
+    w = (phi ** k).mean()                               # średni udział dzisiejszej odchyłki w kolejnych H dniach
+    lr2 = np.where(np.isfinite(s_lr), s_lr ** 2, sig ** 2)
+    return np.sqrt(H * (lr2 + (sig ** 2 - lr2) * w))
+
+
+# Reguła (spisana 2026-10-30, przed zobaczeniem wyników): skalowanie z powrotem do normy zastępuje sigma·√H na danym horyzoncie,
+# jeśli rozkład bazowy („bez zmian”) ma z nim mniejszą stratę pinball przed odcięciem (DM, HAC, p < 0,10) i dodatnią przewagę po nim.
+def scale_test(P, sig, sigH, H, dates):
+    N = len(P)
+    y = np.full(N, np.nan)
+    y[: N - H] = np.log(P[H:] / P[: N - H])
+    s_old = sig * np.sqrt(H)
+    z_old, z_new = y / s_old, y / sigH
+    lag = int(np.ceil(H / C.WF_STEP)) + 1
+    terc = pd.Series(sig).rolling(1095, min_periods=365)
+    lo_q, hi_q = terc.quantile(1 / 3).to_numpy(), terc.quantile(2 / 3).to_numpy()
+    rows = []
+    for t in range(C.WF_START, N - H, C.WF_STEP):
+        pool = np.arange(400, max(t - H + 1, 400))
+        pool = pool[np.isfinite(z_old[pool]) & np.isfinite(z_new[pool])]
+        if len(pool) < C.MIN_TRAIN or not (np.isfinite(sigH[t]) and np.isfinite(y[t])):
+            continue
+        wt = 0.5 ** ((t - pool) / HALF_LIFE)
+        qo = _wq(z_old[pool], wt, QS); qo = qo - qo[3]
+        qn = _wq(z_new[pool], wt, QS); qn = qn - qn[3]
+        yt = y[t] / s_old[t]                            # ta sama skala oceny dla obu wariantów
+        po, pn = qo, qn * sigH[t] / s_old[t]
+        st = 0 if sig[t] <= lo_q[t] else (2 if sig[t] > hi_q[t] else 1)
+        rows.append((dates[t], _pinball(np.array([yt]), po[None, :])[0], _pinball(np.array([yt]), pn[None, :])[0],
+                     float(po[1] <= yt <= po[5]), float(pn[1] <= yt <= pn[5]), st if np.isfinite(lo_q[t]) else -1))
+    R = pd.DataFrame(rows, columns=["d", "lo", "ln", "co", "cn", "st"])
+    if len(R) < 60:
+        return {"used": False}
+    cut = HOLDOUT
+    pre, post = (R["d"] + pd.Timedelta(days=H) < cut).to_numpy(), (R["d"] >= cut).to_numpy()
+    sk = lambda m: float(1 - R["ln"][m].mean() / R["lo"][m].mean()) if m.sum() > 5 else float("nan")
+    _, p_pre = _dm(R["lo"][pre].to_numpy(), R["ln"][pre].to_numpy(), lag)
+    _, p_post = _dm(R["lo"][post].to_numpy(), R["ln"][post].to_numpy(), lag)
+    used = bool(sk(pre) > 0 and np.isfinite(p_pre) and p_pre < 0.10 and sk(post) > 0)
+    terc_cov = {}
+    for s, name in ((0, "spokojnie"), (1, "przeciętnie"), (2, "burzliwie")):
+        m = (R["st"] == s).to_numpy()
+        if m.sum() >= 10:
+            terc_cov[name] = {"old": float(R["co"][m].mean()), "new": float(R["cn"][m].mean()), "n": int(m.sum())}
+    return {"used": used, "skill_pre": sk(pre), "skill_post": sk(post), "p_pre": p_pre, "p_post": p_post,
+            "n_pre": int(pre.sum()), "n_post": int(post.sum()), "terciles": terc_cov}
+
+
 def run(df, ev, f, sc, comp, reg=None, world_T=None, conf=None, horizons=None):
     N = len(df)
     P = df["close"].to_numpy(float)
@@ -635,9 +688,13 @@ def run(df, ev, f, sc, comp, reg=None, world_T=None, conf=None, horizons=None):
     knn_cols = ["comp", "mom90", "volpct", "powerlaw", "hmm_hi", "cycle"]
     res = {"vol": vinfo, "horizons": {}, "forecasts": []}
     ca = None if conf is None else conf.reindex(df.index).to_numpy(float)
+    s_lr = pd.Series(sig).rolling(730, min_periods=365).median().to_numpy()
     for H in (horizons or C.HORIZONS):
+        sigH = horizon_sigma(sig, H, vinfo["phi"], s_lr)
+        st = scale_test(P, sig, sigH, H, df.index)
+        scale_arr = sigH if st.get("used") else sig * np.sqrt(H)
         zt = np.full(N, np.nan)
-        zt[: N - H] = np.log(P[H:] / P[: N - H]) / (sig[: N - H] * np.sqrt(H))
+        zt[: N - H] = np.log(P[H:] / P[: N - H]) / scale_arr[: N - H]
         out, T, y, info = walk_forward(Z, zt, H, N, "comp", knn_cols, Z["comp"].to_numpy(float), df.index, P, Wz, ca)
         cens, ens, wts, alphas, cal, L, out = combine(out, y, H)
         lag = int(np.ceil(H / C.WF_STEP)) + 1
@@ -657,12 +714,20 @@ def run(df, ev, f, sc, comp, reg=None, world_T=None, conf=None, horizons=None):
         q = cens[-1]
         if ho.get("passed") and ho["chosen"] != "ens":           # zdał egzamin na odciętych 2 latach: wchodzi do prognozy od dziś
             q = np.array(ho["q_live"])
-        scale = sig[-1] * np.sqrt(H)
+        scale = float(scale_arr[-1])
         prices = {f"p{int(a * 100)}": float(P[-1] * np.exp(scale * v)) for a, v in zip(QS, q)}
+        # audyt: pokrycie końcowego pasma 80% w spokojnych, przeciętnych i burzliwych okresach (tercyle z ostatnich 3 lat)
+        tq = pd.Series(sig).rolling(1095, min_periods=365)
+        lo_q, hi_q = tq.quantile(1 / 3).to_numpy()[T], tq.quantile(2 / 3).to_numpy()[T]
+        okc = np.isfinite(y) & np.isfinite(cens).all(axis=1) & np.isfinite(lo_q)
+        stt = np.where(sig[T] <= lo_q, 0, np.where(sig[T] > hi_q, 2, 1))
+        inb = (y >= cens[:, 1]) & (y <= cens[:, 5])
+        audit = {nm: {"cov80": float(inb[okc & (stt == s)].mean()), "n": int((okc & (stt == s)).sum())}
+                 for s, nm in ((0, "spokojnie"), (1, "przeciętnie"), (2, "burzliwie")) if (okc & (stt == s)).sum() >= 10}
         cdf0 = float(np.interp(0.0, q, QS, left=0.0, right=1.0)) if np.all(np.diff(q) > 0) else 0.5
         res["horizons"][H] = {"table": rows, "n": nok, "weights": dict(zip(MODELS, map(float, wts[-1]))), "alpha": float(alphas[-1]),
                               "calibration": float(cal[-1]), "live_z": {m: out[m][-1].tolist() for m in MODELS}, "ens_z": q.tolist(),
-                              "explain": info, "sigma_H": float(sig[-1] * np.sqrt(H)), "aci": aci_info,
+                              "explain": info, "sigma_H": scale, "aci": aci_info, "scale_test": st, "audit": audit,
                               "holdout": {k: v for k, v in ho.items() if k != "q_live"}}
         view = np.nanmean([out["comp"][-1], out["ridge"][-1]], axis=0)       # pogląd modeli wskaźników (bez potwierdzonej przewagi)
         vcdf0 = float(np.interp(0.0, view, QS, left=0.0, right=1.0)) if np.all(np.diff(view) > 0) else 0.5

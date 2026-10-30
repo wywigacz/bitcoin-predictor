@@ -594,10 +594,22 @@ def touch_html(TC):
     decomp = (f' Rozbicie wyniku: model lepiej odróżnia sytuacje ryzykowne od spokojnych (rozdzielczość {c["resolution"]:.4f} wobec {c["resolution_base"]:.4f} '
               f'dla stałej częstości), a jego szanse są też lepiej dopasowane do rzeczywistości (błąd kalibracji {c["reliability"]:.4f} wobec {c["reliability_base"]:.4f}).'
               ).replace("0.", "0,") if "resolution" in c else ""
+    hl = TC.get("definition", "close") == "hl"
+    od = TC.get("other_definition") or {}
+    ob = (od.get("variants") or {}).get(od.get("best"), {})
+    defn = ('Liczymy dotknięcie tak, jak się je rozumie: wystarczy, że cena choć raz w ciągu dnia sięgnie poziomu (najwyższa lub najniższa cena dnia), '
+            'a nie tylko na zamknięcie. Symulacja losuje całe prawdziwe dni z historii, razem z ich zasięgiem w górę i w dół. '
+            if hl else 'Dotknięcie liczymy na zamknięcie dnia (cena o północy UTC); w ciągu dnia cena mogła sięgnąć poziomu częściej. ')
+    switch = ""
+    if ob:
+        switch = (f'<p class="muted sm" style="margin:8px 0 0">Wybór definicji według reguły spisanej z góry: liczenie po maksimach i minimach dnia zastępuje '
+                  f'liczenie po zamknięciach, jeśli bije stałą częstość i przed odcięciem 29.10.2024, i na egzaminie. '
+                  + (f'Przeszło: przewaga {pl(c["skill_pre"] * 100)}% przed i {pl(c["skill_post"] * 100)}% na egzaminie '
+                     f'(dla porównania liczenie po zamknięciach: {pl(ob.get("skill_pre", 0) * 100)}% i {pl(ob.get("skill_post", 0) * 100)}%).'
+                     if hl else 'Nie przeszło, więc zostajemy przy zamknięciach.') + '</p>')
     return (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Jaka jest szansa, że cena dotknie danego poziomu?</h3>'
-            f'<p class="muted sm" style="margin:0 0 10px">Nie chodzi o to, gdzie cena skończy, tylko czy choć raz dotknie poziomu po drodze. '
-            f'Liczymy to z 20 000 symulowanych ścieżek ceny zbudowanych z prawdziwych, historycznych dziennych ruchów Bitcoina, '
-            f'przy dzisiejszej zmienności, która z czasem wraca do normy.{drift_note}</p>'
+            f'<p class="muted sm" style="margin:0 0 10px">Nie chodzi o to, gdzie cena skończy, tylko czy choć raz dotknie poziomu po drodze. {defn}'
+            f'Liczymy to z 20 000 symulowanych ścieżek ceny przy dzisiejszej zmienności, która z czasem wraca do normy.{drift_note}</p>'
             + f'<div class="tw"><table class="tbl"><tr><th>Poziom</th><th>W 7 dni</th><th>W 30 dni</th><th>W 90 dni</th></tr>{rows}</table></div>'
             f'<h3 class="ct" style="margin-top:18px">Czy te szanse się sprawdzały?</h3>'
             f'<p class="muted sm" style="margin:0 0 10px">Co tydzień od 2016 roku liczyliśmy szansę dotknięcia poziomów ±10% i ±20% w ciągu 30 dni, znając tylko dane do tego dnia, '
@@ -605,7 +617,7 @@ def touch_html(TC):
             f'<div class="tw"><table class="tbl"><tr><th>Gdy model mówił</th><th>Średnio mówił</th><th>Naprawdę się zdarzyło</th><th>Prób</th></tr>{cr}</table></div>'
             f'<p class="note"><b>Wniosek:</b> w porównaniu ze stałą historyczną częstością (np. „+10% w miesiąc zdarza się w mniej więcej połowie miesięcy”), '
             f'liczoną tylko z przeszłości, model jest dokładniejszy o {pl(sk)}% (wynik Briera). To niewielka, ale uczciwa przewaga: '
-            f'bierze się z tego, że dzisiejsza zmienność mówi coś o najbliższych tygodniach.{decomp}{sidetxt}</p>'
+            f'bierze się z tego, że dzisiejsza zmienność mówi coś o najbliższych tygodniach.{decomp}{sidetxt}</p>{switch}'
             + (f'<p class="muted sm" style="margin:10px 0 6px">Sprawdziliśmy kilka sposobów symulacji tym samym testem; w tabeli przewaga każdego nad stałą częstością. '
                f'Wybór najlepszego z kilku na tym samym teście jest lekko optymistyczny, dlatego pokazujemy wszystkie.</p>'
                f'<div class="tw"><table class="tbl"><tr><th>Sposób symulacji</th><th>Przewaga</th></tr>{var_rows}</table></div>' if var_rows else "")
@@ -680,6 +692,63 @@ def short_html(ens):
             f'<p class="muted sm" style="margin:0 0 10px">Im krótszy horyzont, tym więcej niezależnych prób w historii, więc tym łatwiej wykryć nawet małą przewagę. '
             f'Sprawdzamy tu najlepszą metodę na tle założenia „bez zmian”. Te horyzonty nie trafiają do głównej prognozy, dopóki przewaga nie jest istotna.</p>'
             f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Prób</th><th>Najlepsza metoda</th><th>Przewaga</th><th>Istotna?</th><th>W paśmie 80%</th></tr>{rows}</table></div></div>')
+
+
+def volev_html(VE):
+    """Spokojnie czy burzliwie: szanse zdarzeń zmienności i ich rozliczenie."""
+    if not VE:
+        return ""
+    pc = lambda v: f"{v * 100:.0f}%"
+    pl = lambda v: f"{v * 100:+.1f}%".replace(".", ",")
+    tiles, rows = "", ""
+    for k, v in VE.items():
+        if v.get("p_now") is None:
+            continue
+        e = v["eval"]
+        badge = "przewaga potwierdzona" if v["confirmed"] else "bez potwierdzonej przewagi"
+        tiles += (f'<div class="card tile"><span class="muted sm">{html.escape(v["q"])}</span><b>{pc(v["p_now"])}</b>'
+                  f'<span class="muted sm">zwykle: {pc(v["base_rate"])} · {badge}</span></div>')
+        rows += (f'<tr><td>{html.escape(v["label"])}</td><td>{pl(e["przed"]["skill_pers"])}</td><td>{pl(e["po"]["skill_pers"])}</td>'
+                 f'<td>{pl(e["calosc"]["skill_clim"])}</td><td class="muted">{e["calosc"]["n"]}</td></tr>')
+    rel = (VE.get("burza7") or {}).get("reliability") or []
+    reltxt = ""
+    hi = [r for r in rel if r["lo"] >= 0.6]
+    if hi:
+        r = hi[0]
+        reltxt = (f' Jedna słabość: przy wysokich szansach model bywa zbyt ostrożny. Gdy mówił średnio {pc(r["pred"])} burzliwego tygodnia, '
+                  f'burzliwy był w {pc(r["real"])} przypadków.') if r["real"] - r["pred"] > 0.05 else ""
+    return (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Spokojnie czy burzliwie?</h3>'
+            f'<p class="muted sm" style="margin:0 0 10px">Kierunku ceny nie umiemy przewidzieć, ale to, czy nadchodzą duże wahania, już tak. '
+            f'„Burzliwy tydzień” to tydzień, w którym wahania są większe niż ich mediana z ostatniego roku. Szanse liczy prosty model z dzisiejszej prognozy zmienności, '
+            f'uczony co tydzień tylko na przeszłości.</p><div class="tiles3">{tiles}</div>'
+            f'<div class="tw" style="margin-top:12px"><table class="tbl"><tr><th>Zdarzenie</th><th>Lepszy od „jak ostatnio”: przed 29.10.2024</th>'
+            f'<th>…na egzaminie (ostatnie 2 lata)</th><th>Lepszy od stałej częstości (cała historia)</th><th>Prób</th></tr>{rows}</table></div>'
+            f'<p class="note"><b>Jak to czytać:</b> „jak ostatnio” to uczciwy rywal: zakłada, że jeśli ostatni okres był burzliwy, następny też będzie. '
+            f'„Przewaga potwierdzona” znaczy, że model był od niego lepszy (wynik Briera) i przed odcięciem, i na egzaminie; tę regułę spisaliśmy przed zobaczeniem wyników.{reltxt}</p></div>')
+
+
+def bands_html(ens):
+    """Czy pasma pasują do stanu rynku: test skalowania i pokrycie w spokojnych, przeciętnych i burzliwych okresach."""
+    if not ens:
+        return ""
+    pl = lambda v: "–" if v is None or v != v else f"{v * 100:+.1f}%".replace(".", ",")
+    pc = lambda v: f"{v * 100:.0f}%"
+    rows = ""
+    for H, v in sorted(ens["horizons"].items(), key=lambda a: int(a[0])):
+        st, au = v.get("scale_test") or {}, v.get("audit") or {}
+        if not st or "skill_pre" not in st:
+            continue
+        cov = " / ".join(pc(au[k]["cov80"]) if k in au else "–" for k in ("spokojnie", "przeciętnie", "burzliwie"))
+        rows += (f'<tr><td><b>{H} dni</b></td><td class="{"pos" if st["used"] else "muted"}">{"tak" if st["used"] else "nie"}</td>'
+                 f'<td>{pl(st["skill_pre"])}</td><td>{pl(st["skill_post"])}</td><td>{cov}</td></tr>')
+    return (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Czy pasma pasują do stanu rynku?</h3>'
+            f'<p class="muted sm" style="margin:0 0 10px">Po spokojnym okresie wahania zwykle wracają, a po burzliwym cichną. Proste przeliczenie dzisiejszej zmienności '
+            f'na dłuższy okres tego nie uwzględnia, więc pasma bywały za wąskie w spokoju i za szerokie po burzy. Nowe przeliczenie zakłada, że zmienność wraca do swojej '
+            f'normy z ostatnich 2 lat. Włączamy je na danym horyzoncie tylko, jeśli poprawiło prognozę przed 29.10.2024 (z małą szansą przypadku) i nadal poprawia na egzaminie.</p>'
+            f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Nowe przeliczenie</th><th>Poprawa przed</th><th>Poprawa na egzaminie</th>'
+            f'<th>Cena w paśmie 80%: spokojnie / przeciętnie / burzliwie</th></tr>{rows}</table></div>'
+            f'<p class="muted sm" style="margin:6px 0 0">Ostatnia kolumna to rozliczenie końcowych pasm od ok. 2015 roku w trzech stanach rynku (tercyle zmienności z ostatnich 3 lat). '
+            f'Cel: około 80% w każdym. Wyraźnie mniej w spokojnych okresach znaczy, że wtedy pasma nadal bywają za wąskie: po długiej ciszy łatwo o niespodziankę.</p></div>')
 
 
 def history_track_html(ens):
@@ -892,7 +961,16 @@ def _pl_decimals(page):
     """Zamienia kropkę dziesiętną na przecinek w tekście strony (poza znacznikami, stylami i skryptami)."""
     i = page.index("<script>")
     parts = re.split(r"(<style.*?</style>|<[^>]+>)", page[:i], flags=re.S)
-    return "".join(p if p.startswith("<") else re.sub(r"(?<=\d)\.(?=\d)", ",", p) for p in parts) + page[i:]
+    date = re.compile(r"\b\d{1,2}\.\d{1,2}\.\d{4}\b")                # daty typu 29.10.2024 zostają z kropkami
+
+    def fix(p):
+        keep = date.findall(p)
+        p = date.sub("\x00", p)
+        p = re.sub(r"(?<=\d)\.(?=\d)", ",", p)
+        for d in keep:
+            p = p.replace("\x00", d, 1)
+        return p
+    return "".join(p if p.startswith("<") else fix(p) for p in parts) + page[i:]
 
 
 def sim_html(SM):
@@ -1235,7 +1313,7 @@ def markets_html(M, df):
             f'<h3 class="ct" style="margin-top:18px">Obligacje</h3><p class="muted sm" style="margin:0 0 8px">Ujemne: gdy obligacje drożeją (ucieczka do bezpieczeństwa), Bitcoin zwykle tanieje.</p>{bnd}</div></div>{an}')
 
 
-def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None, TCH=None, SIM=None):
+def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None, TCH=None, SIM=None, VE=None):
     fr = res["frame"]
     reg_tiles, reg_verdict = regularity_html(Rg)
     scan_head, scan_body = scan_html(S)
@@ -1304,7 +1382,8 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=No
             .replace("%%MARKETS%%", markets_html(MKT, df))
             .replace("%%EXTRA%%", extra_html())
             .replace("%%WHALES%%", whales_html(CF, df, ens))
-            .replace("%%TOUCH%%", touch_html(TCH))
+            .replace("%%TOUCH%%", touch_html(TCH) + volev_html(VE))
+            .replace("%%BANDS%%", bands_html(ens))
             .replace("%%SIMPORT%%", sim_html(SIM))
             .replace("%%SHORTH%%", short_html(ens) + exam_html(ens, TCH, SIM))
             .replace("%%NSERIES%%", n(S["summary"]["n_series"], 0) if S else "kilkaset")

@@ -30,6 +30,7 @@ import sim
 import sources
 import store
 import touch
+import volev
 import whales
 import world
 import worldlog
@@ -144,6 +145,13 @@ def update(full=False):
         TCH = touch.run(df, sig_now)
     except Exception as e:
         print("  [uwaga] szanse dotknięcia:", str(e)[:120])
+    print("Spokojnie czy burzliwie (zdarzenia zmienności) ...")
+    VE = None
+    try:
+        VE = volev.run(df, sig_now)
+        print("  " + ", ".join(f'{k}: {v["p_now"] * 100:.0f}%{" (potwierdzone)" if v["confirmed"] else ""}' for k, v in VE.items() if v.get("p_now") is not None))
+    except Exception as e:
+        print("  [uwaga] zdarzenia zmienności:", str(e)[:120])
     print("Wirtualny portfel (decyzja dnia i test na historii) ...")
     try:
         SIM = sim.run(df, sig_now)
@@ -176,7 +184,9 @@ def update(full=False):
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
     slim["touch"] = {k: v for k, v in TCH.items()} if TCH else None
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
-    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF, TCH, SIM)
+    slim["volev"] = VE
+    C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
+    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF, TCH, SIM, VE)
     print_summary(res)
     return res
 
