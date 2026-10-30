@@ -17,6 +17,11 @@ Spisany 30 października 2026. Powstał tak: osiem niezależnych „perspektyw�
 1. **Kolumna pozycji funduszy na CME (`cot_lev`)** zawierała w 88% wierszy liczby odsłon włoskiej Wikipedii (pozostałość pomieszania kolumn z 29 października). Odbudowana z nowego pobrania z CFTC, datowana na dzień publikacji (piątek, 3 dni po stanie z wtorku), ze strażnikiem zakresu.
 2. **Niedokończona świeca dnia.** Bitstamp zwracał też bieżący, niezamknięty dzień, więc prognozy i dziennik na żywo liczyły się od ceny z środka dnia (horyzont „7 dni” był naprawdę około 7,6 dnia). Teraz pobieramy tylko zamknięte dni UTC, a panel podpisuje cenę datą zamknięcia.
 
+## Stan wdrożenia
+
+- 30.10.2026: punkty 1–3 wdrożone (pasma zależne od stanu zmienności na 7/30/90 dni, „Spokojnie czy burzliwie?”, dotknięcia po maksimach i minimach dnia).
+- 30.10.2026: punkty 4–6 wdrożone (krok dzienny dla 1/3/7 dni, poprawka HLN, „nierozstrzygnięte”, najmniejszy wykrywalny efekt, monitor i reguła emerytury H7/H10, H14; blok odporności portfela; dziennik wszystkich metod).
+
 ## Plan w kolejności (zysk × szansa, że przejdzie protokół) / nakład
 
 Nakład: 1 = godziny, 3 = dzień–dwa, 5 = tydzień. „Szansa” to ocena sceptyka, że pomysł przejdzie nasz protokół (hipoteza z góry, test poza próbą, egzamin na 2 latach).

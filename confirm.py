@@ -9,7 +9,7 @@ Tu jest tylko 6 prób, każda z kierunkiem przewidzianym z góry, więc próg je
 Hipoteza, która przejdzie wszystko, trafia do zespołu modeli jako dodatkowa cecha. Hipotez i progów nie zmieniamy po fakcie."""
 import numpy as np
 import pandas as pd
-from scipy.stats import rankdata, t as tdist
+from scipy.stats import norm, rankdata, t as tdist
 
 import whales as WH
 
@@ -110,21 +110,62 @@ def _p_hac(x, y, h, sign):
     return float(1 - tdist.cdf(sign * b / se, n - 2)) if se > 0 else 1.0
 
 
+# Partia 4 (spisana 2026-10-30): H14 = H7 sprawdzana WYŁĄCZNIE na danych po dniu rejestracji. Wynik H7 pochodzi z historii,
+# na której ją wybraliśmy; jedynym czystym dowodem jest przyszłość. Werdykt dopiero przy n/h >= 250 (to lata).
+HYP += [
+    {"id": "H14", "col": "mom28", "h": 7, "sign": +1, "batch": 4, "from": "2026-10-30", "min_n": 250 * 7,
+     "text": "Kontynuacja H7 na nowych danych (od 30.10.2026): wzrost w 4 tygodnie → wyższy zwrot w kolejnym tygodniu"},
+]
+
+# Reguła emerytury (spisana 2026-10-30): potwierdzony sygnał przestaje być używany, gdy na dwóch kolejnych corocznych przeglądach
+# (29 października, od 2027) w oknie ostatnich 3 lat jednocześnie p (Newey-West, jednostronnie) > 0,10 i korelacja w przewidzianym kierunku < 0,03.
+RETIRE_FIRST = pd.Timestamp("2027-10-29")
+
+
+def _window_stats(x, y, end, h, sign, years=3):
+    m = x.notna() & y.notna() & (x.index > end - pd.DateOffset(years=years)) & (x.index <= end - pd.Timedelta(days=h))
+    if m.sum() < 200:
+        return None
+    xv, yv = x[m].to_numpy(float), y[m].to_numpy(float)
+    return {"rho": _spear(xv, yv) * sign, "p_hac": _p_hac(xv, yv, h, sign), "n": int(m.sum())}
+
+
+def health(x, y, h, sign, today):
+    """Zdrowie potwierdzonego sygnału: wynik z ostatnich 3 lat i coroczne przeglądy według reguły emerytury."""
+    now = _window_stats(x, y, today, h, sign)
+    checks, fails, retired = [], 0, False
+    c = RETIRE_FIRST
+    while c <= today:
+        s = _window_stats(x, y, c, h, sign)
+        bad = s is not None and s["p_hac"] > 0.10 and s["rho"] < 0.03
+        fails = fails + 1 if bad else 0
+        retired = retired or fails >= 2
+        checks.append({"date": str(c.date()), **(s or {}), "fail": bool(bad)})
+        c = c + pd.DateOffset(years=1)
+    return {"now": now, "checks": checks, "retired": retired, "next_check": str(c.date())}
+
+
 def run(df):
     F = features(df.index, df)
     lr = np.log(df["close"])
+    today = df.index[-1]
     rows = []
     for H in HYP:
         k = sum(1 for x in HYP if x["batch"] == H["batch"])            # poprawka na liczbę prób w obrębie partii
         r = dict(H)
         r["alpha"] = ALPHA / k
         x = F[H["col"]] if H["col"] in F else pd.Series(np.nan, index=df.index)
+        if H.get("from"):
+            x = x.where(x.index >= pd.Timestamp(H["from"]))
         y = lr.shift(-H["h"]) - lr
         m = x.notna() & y.notna()
         n = int(m.sum())
+        n_eff0 = max(n / H["h"], 5)
         r.update({"n": n, "now": None if x.dropna().empty else float(x.dropna().iloc[-1]),
-                  "first": None if x.dropna().empty else x.dropna().index[0].strftime("%Y-%m-%d")})
-        if n < MIN_DAYS:
+                  "first": None if x.dropna().empty else x.dropna().index[0].strftime("%Y-%m-%d"),
+                  # najmniejsza korelacja, którą test wykryłby w 4 na 5 przypadków przy obecnej liczbie niezależnych obserwacji
+                  "mde_rho": float((norm.ppf(1 - ALPHA / k) + norm.ppf(0.8)) / np.sqrt(max(n_eff0 if n >= MIN_DAYS else 250, 5)))})
+        if n < H.get("min_n", MIN_DAYS):
             r.update({"status": "collect", "r": None, "p": None})
             rows.append(r)
             continue
@@ -142,6 +183,10 @@ def run(df):
         r.update({"r": rho, "p": p, "r_a": ra, "r_b": rb, "stable": bool(stable), "n_eff": n_eff, "p_hac": _p_hac(xv, yv, H["h"], H["sign"]),
                   "ret_lo": float(ret[q == 0].mean()), "ret_hi": float(ret[q == 2].mean()),
                   "status": "confirmed" if ok else ("reverse" if H["sign"] * rho < 0 and (1 - p) < ALPHA / k else "rejected")})
+        if r["status"] == "confirmed":
+            r["health"] = health(x, y, H["h"], H["sign"], today)
+            if r["health"]["retired"]:
+                r["status"] = "retired"
         rows.append(r)
-    conf = [r["col"] for r in rows if r["status"] == "confirmed"]
+    conf = list(dict.fromkeys(r["col"] for r in rows if r["status"] == "confirmed"))
     return {"rows": rows, "confirmed": conf, "features": F, "alpha_each": ALPHA / sum(1 for x in HYP if x["batch"] == 1)}

@@ -68,9 +68,10 @@ def update_log(res, df):
              "p5": f.get("p5"), "p95": f.get("p95"), "prob_up": f.get("prob_up")} for f in res["forecasts"]]
     new = pd.DataFrame(rows, columns=LOG_COLS)
     if len(log):
+        # tylko dopisywanie (od 2026-10-30): pierwszy zapis z danego dnia wygrywa, wcześniejszych prognoz nigdy nie poprawiamy
         key = log["made_on"].astype(str) + "|" + log["horizon"].astype(str)
-        log = log[~key.isin(new["made_on"].astype(str) + "|" + new["horizon"].astype(str))]
-        log = pd.concat([log, new], ignore_index=True)
+        new = new[~(new["made_on"].astype(str) + "|" + new["horizon"].astype(str)).isin(key)]
+        log = pd.concat([log, new], ignore_index=True) if len(new) else log
     else:
         log = new
     close = df["close"]
@@ -83,6 +84,82 @@ def update_log(res, df):
     log = log.sort_values(["made_on", "horizon"])
     log.to_csv(C.LOG_CSV, index=False, float_format="%.6g")
     return log
+
+
+LEDGER_CSV = C.DATA_DIR / "ledger.csv"
+QCOLS = ["q05", "q10", "q25", "q50", "q75", "q90", "q95"]
+
+
+def _code_version():
+    import os
+    import subprocess
+    sha = os.environ.get("GITHUB_SHA")
+    if not sha:
+        try:
+            sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, cwd=C.ROOT, timeout=10).stdout.strip()
+        except Exception:
+            sha = ""
+    return sha[:10]
+
+
+def update_ledger(asof, price, ens, close):
+    """Dziennik na przyszłość (od 2026-10-30): codziennie kwantyle KAŻDEJ metody na każdy horyzont, w cenach, z numerem wersji kodu.
+    Tylko dopisywany: wiersz (dzień, horyzont, metoda) zapisany raz nigdy się nie zmienia; po terminie dopisujemy tylko wynik.
+    To jedyny w pełni czysty test: żadna z tych prognoz nie mogła widzieć swojej przyszłości."""
+    made = pd.Timestamp(asof)
+    sha = _code_version()
+    rows = []
+    blocks = list((ens.get("horizons") or {}).items()) + list((ens.get("short") or {}).items())
+    for H, v in blocks:
+        H = int(H)
+        scale = float(v.get("sigma_H") or np.nan)
+        cand = dict(v.get("live_z") or {})
+        if v.get("ens_z") is not None:
+            cand["published"] = v["ens_z"]
+        for m, z in cand.items():
+            z = np.asarray(z, float)
+            if len(z) != 7 or not np.isfinite(z).all() or not np.isfinite(scale):
+                continue
+            rows.append({"made_on": made, "horizon": H, "model": m, "target_date": made + pd.Timedelta(days=H), "price0": price,
+                         **{c: float(price * np.exp(scale * q)) for c, q in zip(QCOLS, np.sort(z))}, "scale": scale, "code": sha,
+                         "actual": np.nan, "in80": np.nan, "pinball": np.nan})
+    new = pd.DataFrame(rows)
+    old = pd.read_csv(LEDGER_CSV, parse_dates=["made_on", "target_date"]) if LEDGER_CSV.exists() else pd.DataFrame()
+    if len(old) and len(new):
+        k_old = old["made_on"].astype(str) + "|" + old["horizon"].astype(str) + "|" + old["model"]
+        k_new = new["made_on"].astype(str) + "|" + new["horizon"].astype(str) + "|" + new["model"]
+        new = new[~k_new.isin(k_old)]
+    L = pd.concat([old, new], ignore_index=True) if len(old) else new
+    if L.empty:
+        return L
+    due = L["actual"].isna() & (L["target_date"] <= close.index.max())
+    qs = np.array([0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95])
+    for i in L.index[due]:
+        a = float(close.asof(L.at[i, "target_date"]))
+        L.at[i, "actual"] = a
+        L.at[i, "in80"] = float(L.at[i, "q10"] <= a <= L.at[i, "q90"])
+        y = np.log(a / L.at[i, "price0"]) / L.at[i, "scale"]
+        qz = np.log(L.loc[i, QCOLS].to_numpy(float) / L.at[i, "price0"]) / L.at[i, "scale"]
+        d = y - qz
+        L.at[i, "pinball"] = float(np.maximum(qs * d, (qs - 1) * d).mean())
+    L = L.sort_values(["made_on", "horizon", "model"])
+    L.to_csv(LEDGER_CSV, index=False, float_format="%.6g")
+    return L
+
+
+def ledger_stats(L):
+    """Rozliczenie dziennika: dla każdej metody i horyzontu pokrycie pasma 80% i przewaga nad „bez zmian” (tylko rozstrzygnięte)."""
+    if L is None or L.empty:
+        return None
+    d = L.dropna(subset=["actual"])
+    out = {"rows": int(len(L)), "matured": int(len(d)), "first": str(L["made_on"].min())[:10], "by": []}
+    for (H, m), g in d.groupby(["horizon", "model"]):
+        nv = d[(d["horizon"] == H) & (d["model"] == "naive")].set_index("made_on")["pinball"]
+        gg = g.set_index("made_on")["pinball"]
+        j = gg.index.intersection(nv.index)
+        sk = float(1 - gg[j].mean() / nv[j].mean()) if len(j) and m != "naive" and nv[j].mean() > 0 else np.nan
+        out["by"].append({"horizon": int(H), "model": m, "n": int(len(g)), "cov80": float(g["in80"].mean()), "skill": sk})
+    return out
 
 
 def log_stats(log):

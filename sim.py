@@ -12,7 +12,12 @@ Zasady (ustalone z góry 2026-10-29, jawne i niezmieniane po fakcie):
   - handel tylko, gdy cel różni się od obecnego udziału o więcej niż 5 punktów procentowych; prowizja 0,2% od obrotu,
   - kupno/sprzedaż po cenie zamknięcia dnia; decyzja używa wyłącznie danych znanych na koniec tego dnia.
 Porównanie: zwykłe regularne kupowanie (każda wpłata od razu w BTC, bez sprzedaży, ta sama prowizja).
-Podatki pominięte (w Polsce zysk z kryptowalut podlega 19% podatkowi, PIT-38)."""
+Podatki pominięte (w Polsce zysk z kryptowalut podlega 19% podatkowi, PIT-38).
+
+Zmiana 2026-10-30 (punkt 5 planu): zmienność dla strategii „ryzyko” to średnia wykładnicza kwadratów zwrotów (bez parametrów
+dopasowanych na całej historii), więc test na historii i egzamin nie zaglądają w przyszłość. Do tego blok odporności:
+wyniki dla każdej daty startu od 2014, porównanie ze „ślepym” portfelem o tej samej średniej ekspozycji w BTC
+(stała waga, bez żadnych sygnałów), przedział ufności z bootstrapu, kruchość okna trendu i prosta średnia strategii (1/N)."""
 import json
 
 import numpy as np
@@ -139,7 +144,91 @@ def _stats(R, col="value"):
             "twr_ann": float(idx[-1] ** (1 / yrs) - 1), "max_dd": dd}
 
 
+def causal_sigma(df):
+    """Zmienność dzienna liczona tylko z przeszłości: średnia wykładnicza kwadratów zwrotów (stała alfa z config)."""
+    r = np.log(df["close"]).diff().fillna(0) ** 2
+    return np.sqrt(r.ewm(alpha=C.EWMA_ALPHA, adjust=False, min_periods=30).mean()).bfill().to_numpy()
+
+
+def _with_target(X, target):
+    X2 = X.copy()
+    X2["target"] = target
+    return X2
+
+
+def _boot_ci(d, block=20, reps=2000, seed=11):
+    """Przedział 90% średniej (stacjonarny bootstrap Politisa i Romano, średni blok 20 dni)."""
+    rng = np.random.default_rng(seed)
+    n = len(d)
+    if n < 60:
+        return None
+    means = np.empty(reps)
+    for b in range(reps):
+        idx = np.empty(n, int)
+        i = rng.integers(n)
+        for j in range(n):
+            if j and rng.random() < 1 / block:
+                i = rng.integers(n)
+            idx[j] = i
+            i = (i + 1) % n
+        means[b] = d[idx].mean()
+    return float(np.percentile(means, 5)), float(np.percentile(means, 95))
+
+
+def robustness(X, T, P, df):
+    """Czy przewaga to umiejętność, czy szczęście daty startu i mniejszej ekspozycji?"""
+    out = {}
+    eqw = T[list(STRATS)].mean(axis=1)
+    for years in (2, 4):
+        rows = []
+        for st in pd.date_range("2014-01-01", X.index[-1] - pd.DateOffset(years=years), freq="MS"):
+            en = st + pd.DateOffset(years=years) - pd.Timedelta(days=1)
+            A = simulate(X, T, P, st, en, log=False)
+            if len(A) < 300:
+                continue
+            w = float((A["btc"] * A["price_pln"] / A["value"]).mean())   # średnia ekspozycja aktywnego portfela
+            B = simulate(_with_target(X, w), T, P, st, en, log=False)
+            N = simulate(_with_target(X, eqw), T, P, st, en, log=False)
+            rows.append({"start": str(st.date()), "vs_dca": float(A["value"].iloc[-1] / A["dca_value"].iloc[-1]),
+                         "vs_blind": float(A["value"].iloc[-1] / B["value"].iloc[-1]), "n_vs_dca": float(N["value"].iloc[-1] / N["dca_value"].iloc[-1]),
+                         "dd_a": _stats(A)["max_dd"], "dd_dca": _stats(A, "dca_value")["max_dd"], "dd_blind": _stats(B)["max_dd"], "w": w})
+        R = pd.DataFrame(rows)
+        if R.empty:
+            continue
+        q = lambda s, p: float(s.quantile(p))
+        out[f"{years}y"] = {"n": int(len(R)), "beat_dca": float((R["vs_dca"] > 1).mean()), "med_vs_dca": float(R["vs_dca"].median()),
+                            "p10": q(R["vs_dca"], 0.1), "p90": q(R["vs_dca"], 0.9),
+                            "beat_blind": float((R["vs_blind"] > 1).mean()), "med_vs_blind": float(R["vs_blind"].median()),
+                            "beat_dca_1n": float((R["n_vs_dca"] > 1).mean()),
+                            "dd_vs_dca_pp": float((R["dd_a"] - R["dd_dca"]).median() * 100),
+                            "dd_vs_blind_pp": float((R["dd_a"] - R["dd_blind"]).median() * 100), "avg_w": float(R["w"].mean())}
+    # przedział ufności dla przewagi na egzaminie (dzienne zwroty bez wpływu wpłat)
+    E = simulate(X, T, P, EXAM_START, log=False)
+    v, dep = E["value"].to_numpy(float), E["deposit"].to_numpy(float)
+    vd = E["dca_value"].to_numpy(float)
+    ga = np.log((v[1:] - dep[1:]) / v[:-1])
+    gd = np.log((vd[1:] - dep[1:] * (1 - FEE)) / vd[:-1])
+    ci = _boot_ci(ga - gd)
+    out["exam_ci"] = {"mean_ann": float((ga - gd).mean() * 365), "lo_ann": ci[0] * 365, "hi_ann": ci[1] * 365} if ci else None
+    # kruchość: sama reguła trendu z różnymi oknami
+    lc = np.log(df["close"])
+    frag = []
+    for L in (14, 28, 56, 84, 112, 200):
+        tgt = pd.Series(np.where((lc - lc.shift(L)).reindex(X.index) > 0, 1.0, 0.25), X.index)
+        A = simulate(_with_target(X, tgt), T, P, BACKTEST_START, log=False)
+        B = simulate(_with_target(X, tgt), T, P, EXAM_START, log=False)
+        frag.append({"L": L, "since2018": float(A["value"].iloc[-1] / A["dca_value"].iloc[-1]), "exam": float(B["value"].iloc[-1] / B["dca_value"].iloc[-1])})
+    out["fragility"] = frag
+    # 1/N (równe wagi strategii) obok Hedge
+    for nm, tgt in (("hedge", X["target"]), ("1n", eqw)):
+        A = simulate(_with_target(X, tgt), T, P, BACKTEST_START, log=False)
+        B = simulate(_with_target(X, tgt), T, P, EXAM_START, log=False)
+        out[nm] = {"since2018": float(A["value"].iloc[-1] / A["dca_value"].iloc[-1]), "exam": float(B["value"].iloc[-1] / B["dca_value"].iloc[-1])}
+    return out
+
+
 def run(df, sig):
+    sig = causal_sigma(df)                                       # od 2026-10-30: bez zaglądania w przyszłość (patrz opis modułu)
     X, T, P, S = inputs(df, sig)
     done = X.index[X.index < pd.Timestamp.now(tz="UTC").tz_localize(None).normalize()]   # tylko zamknięte dni
     X, T, P = X.loc[done], T.loc[done], P.loc[done]
@@ -156,6 +245,7 @@ def run(df, sig):
     Ex = simulate(X, T, P, EXAM_START, log=False)
     bt["exam"] = {"start": str(EXAM_START.date()), "active": _stats(Ex), "dca": _stats(Ex, "dca_value"),
                   "trades": int((Ex["action"] != "TRZYMAJ").sum())}
+    bt["robust"] = robustness(X, T, P, df)
     # portfel na żywo: dziennik tylko dopisywany (przeszłych decyzji nigdy nie przeliczamy)
     old = pd.read_csv(LIVE_LOG) if LIVE_LOG.exists() else pd.DataFrame()
     if len(old):

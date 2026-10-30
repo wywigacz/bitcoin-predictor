@@ -213,7 +213,10 @@ def models_html(ens):
         out += (f'<div class="card q"><header><h3>Za {H} dni</h3>{state}</header>'
                 f'<table class="tbl"><tr><th>Metoda</th><th title="O ile mniejsze błędy niż przy założeniu, że cena zostanie taka sama (plus = lepiej)">Lepsza od zgadywania?</th>'
                 f'<th title="Szansa, że przewaga to tylko przypadek. Im niżej, tym pewniej.">Szansa, że to przypadek</th><th title="W ilu na 10 przypadków cena zmieściła się w typowym zakresie (cel: 8)">Trafienia w zakres</th></tr>{rows}</table>'
-                f'<div class="muted sm" style="margin-top:8px">Sprawdzono na {h["n"]} sytuacjach z historii.</div></div>')
+                f'<div class="muted sm" style="margin-top:8px">Sprawdzono na {h["n"]} sytuacjach z historii.'
+                + (lambda m: f' Przy tej liczbie prób test wykryłby przewagę od ok. {m * 100:.1f}% wzwyż (w 4 na 5 przypadków); mniejszej nie odróżni od przypadku.'
+                   if m == m else "")(float(np.nanmedian([r.get("mde", np.nan) for r in h["table"] if r["model"] not in ("naive", "ens", "eq")] or [np.nan])))
+                + '</div></div>')
     return out
 
 
@@ -639,10 +642,17 @@ def exam_html(ens, TCH=None, SIM=None):
         start = ho.get("from")
         r = ho["rows"][ho["chosen"]]
         p = r["p_post"]
-        verdict = '<b class="pos">zdany, w prognozie od dziś</b>' if ho["passed"] else '<span class="muted">nie zdany</span>'
+        vd = ho.get("verdict", "passed" if ho["passed"] else "failed")
+        verdict = {"passed": '<b class="pos">zdany, w prognozie od dziś</b>',
+                   "inconclusive": '<span class="muted">nierozstrzygnięty (za mało niezależnych prób), nie używamy</span>',
+                   "failed": '<span class="muted">nie zdany</span>'}[vd]
+        mde = r.get("mde_post")
+        neff = r.get("n_eff_post")
         rows += (f'<tr><td><b>{H} dni</b></td><td>{html.escape(lab(ho["chosen"]))}</td><td>{pl(r["skill_pre"])}</td>'
                  f'<td class="{"pos" if r["skill_post"] > 0 else "neg"}">{pl(r["skill_post"])}</td>'
-                 f'<td>{"–" if p != p else f"{p:.2f}".replace(".", ",")}</td><td>{r["n_post"]}</td><td>{verdict}</td></tr>')
+                 f'<td>{"–" if p != p else f"{p:.2f}".replace(".", ",")}</td>'
+                 f'<td>{r["n_post"]}{f" (ok. {neff:.0f} niezależnych)" if neff is not None and neff == neff else ""}</td>'
+                 f'<td>{"–" if mde is None or mde != mde else pl(mde)}</td><td>{verdict}</td></tr>')
     out = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Egzamin na ostatnich 2 latach</h3>'
            f'<p class="muted sm" style="margin:0 0 10px">Odcinamy ostatnie 2 lata (od {start or "2024-10-29"}). Metodę, wariant i strategię wybieramy wyłącznie na danych sprzed tej daty, '
            f'a potem sprawdzamy je raz na odciętym okresie, którego przy wyborze „nie widziały”. Do prognozy od dziś wchodzi tylko to, co wygrywa z założeniem „bez zmian” '
@@ -650,8 +660,11 @@ def exam_html(ens, TCH=None, SIM=None):
            f'Nie poprawiamy modelu, dopóki egzamin nie wyjdzie dobrze: to byłoby uczenie się na pamięć tych dwóch lat.</p>')
     if rows:
         out += (f'<h3 class="ct" style="margin-top:6px">Prognoza zakresu ceny</h3>'
-                f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Wybrana metoda</th><th>Przewaga przed</th><th>Przewaga na egzaminie</th><th>p</th><th>Prób</th><th>Wynik</th></tr>{rows}</table></div>'
-                f'<p class="muted sm" style="margin:6px 0 0">Na długich horyzontach prognozy z 2 lat mocno się nakładają (np. dla 180 dni to w praktyce 3–4 niezależne okresy), więc egzamin jest tam surowy.</p>')
+                f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Wybrana metoda</th><th>Przewaga przed</th><th>Przewaga na egzaminie</th><th>p</th><th>Prób</th><th>Najmniejsza przewaga, którą test by wykrył</th><th>Wynik</th></tr>{rows}</table></div>'
+                f'<p class="muted sm" style="margin:6px 0 0">Na długich horyzontach prognozy z 2 lat mocno się nakładają (dla 180 dni to w praktyce kilka niezależnych okresów). '
+                f'Dlatego przy mniej niż 20 niezależnych próbach piszemy „nierozstrzygnięty”, a nie „nie zdany”, i podajemy, jak dużą przewagę ten egzamin w ogóle mógłby wykryć (w 4 na 5 przypadków). '
+                f'Zasada się nie zmienia: metoda, której nie da się sprawdzić, nie wchodzi do prognozy. Od 30.10.2026 testy liczą też poprawkę na małą liczbę prób (Harvey, Leybourne i Newbold 1997), '
+                f'a horyzonty 1, 3 i 7 dni są sprawdzane każdego dnia zamiast co tydzień.</p>')
     if TCH and TCH.get("variants"):
         import touch as TO
         tr = "".join(f'<tr><td>{"<b>" if m == TCH["best"] else ""}{TO.LABELS[m]}{" (wybrany)</b>" if m == TCH["best"] else ""}</td>'
@@ -751,6 +764,26 @@ def bands_html(ens):
             f'Cel: około 80% w każdym. Wyraźnie mniej w spokojnych okresach znaczy, że wtedy pasma nadal bywają za wąskie: po długiej ciszy łatwo o niespodziankę.</p></div>')
 
 
+def ledger_html(ens):
+    """Dziennik każdej metody na żywo (od 30.10.2026): jedyny w pełni czysty test."""
+    LD = (ens or {}).get("ledger")
+    if not LD:
+        return ""
+    head = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Dziennik wszystkich metod na żywo</h3>'
+            f'<p class="muted sm" style="margin:0 0 10px">Od {LD["first"]} codziennie zapisujemy prognozę każdej metody na każdy horyzont, z numerem wersji programu, '
+            f'i nigdy jej nie zmieniamy. Po terminie dopisujemy tylko, co się stało. To jedyny test, w którym żadna prognoza nie mogła „widzieć” przyszłości, '
+            f'bo powstała, zanim przyszłość się wydarzyła. Zapisanych prognoz: {LD["rows"]}, rozliczonych: {LD["matured"]}.</p>')
+    by = [b for b in LD.get("by", []) if b["n"] >= 10]
+    if not by:
+        return head + '<p class="muted sm" style="margin:0">Pierwsze rozliczenia pojawią się, gdy minie termin co najmniej 10 prognoz danej metody (dla 1 dnia: za ok. 2 tygodnie).</p></div>'
+    lab = lambda m: MODEL_LAB.get(m, {"published": "Opublikowana prognoza"}.get(m, m))
+    pl = lambda v: "–" if v is None or v != v else f"{v * 100:+.1f}%".replace(".", ",")
+    rows = "".join(f'<tr><td>{b["horizon"]} dni</td><td>{html.escape(lab(b["model"]))}</td><td>{b["n"]}</td><td>{b["cov80"] * 100:.0f}%</td><td>{pl(b["skill"])}</td></tr>'
+                   for b in sorted(by, key=lambda b: (b["horizon"], b["model"])))
+    return head + (f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Metoda</th><th>Rozliczonych</th><th>Cena w paśmie 80%</th>'
+                   f'<th>Przewaga nad „bez zmian”</th></tr>{rows}</table></div></div>')
+
+
 def history_track_html(ens):
     """Rozliczenie na historii: tysiące prognoz z testu walk-forward (model zna tylko przeszłość w dniu prognozy)."""
     if not ens:
@@ -777,7 +810,7 @@ def history_track_html(ens):
 
 
 def track_html(stats, ens=None):
-    hist = history_track_html(ens)
+    hist = history_track_html(ens) + ledger_html(ens)
     if not stats:
         return ('<div class="card empty"><b>Dziennik prognoz dopiero się zapełnia</b>'
                 '<p class="muted">Każdą prognozę zapisujemy, a gdy minie jej termin, porównujemy z prawdziwą ceną. '
@@ -1034,6 +1067,33 @@ def sim_html(SM):
             f'<p class="note"><b>Uczciwie:</b> ten wynik jest optymistyczny. Strategię trendu wybraliśmy, wiedząc z testu H7, że trend działał właśnie w tych latach, '
             f'a test na historii nie zna przyszłych zmian rynku. Prawdziwą miarą jest portfel na żywo powyżej: jego decyzje zapisujemy co dzień i nigdy ich nie poprawiamy wstecz. '
             f'Podatek (19%, PIT-38) i ryzyko giełdy pominięte.</p></div>')
+    rb = b.get("robust") or {}
+    if rb.get("2y"):
+        r2, r4 = rb["2y"], rb.get("4y") or {}
+        pp = lambda v: f"{v:+.1f} pkt proc.".replace(".", ",")
+        rr = lambda v: f"{v:.2f}".replace(".", ",")
+        wr = ("".join(f'<tr><td>okna {k[0]}-letnie ({x["n"]})</td><td>{pc(x["beat_dca"])}</td><td>{rr(x["med_vs_dca"])} ({rr(x["p10"])}–{rr(x["p90"])})</td>'
+                      f'<td>{pc(x["beat_blind"])}</td><td>{pp(x["dd_vs_dca_pp"])}</td><td>{pp(x["dd_vs_blind_pp"])}</td></tr>'
+                      for k, x in (("2y", r2), ("4y", r4)) if x))
+        fr = "".join(f'<tr><td>{f["L"]} dni{" (używane)" if f["L"] == 28 else ""}</td><td>{rr(f["since2018"])}</td><td>{rr(f["exam"])}</td></tr>' for f in rb.get("fragility", []))
+        ci = rb.get("exam_ci")
+        citxt = (f'Na egzaminie aktywny portfel zarabiał średnio {pl(ci["mean_ann"])} rocznie więcej niż regularne kupowanie, ale 90% przedział ufności '
+                 f'to od {pl(ci["lo_ann"])} do {pl(ci["hi_ann"])}: zero mieści się w środku, więc to nie jest dowód przewagi. ') if ci else ""
+        h1n = (f'Prosta średnia trzech strategii (1/N) wypada prawie tak samo jak wagi uczone algorytmem Hedge: {rr(rb["1n"]["since2018"])} wobec {rr(rb["hedge"]["since2018"])} '
+               f'od 2018 roku (stosunek do regularnego kupowania), czyli „uczenie się” wag na razie niewiele dodaje. ') if rb.get("1n") and rb.get("hedge") else ""
+        out += (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Umiejętność czy szczęście?</h3>'
+                f'<p class="muted sm" style="margin:0 0 10px">Jeden wynik od jednej daty startu niewiele mówi. Dlatego te same zasady uruchamiamy od początku każdego miesiąca od 2014 roku '
+                f'i porównujemy nie tylko z regularnym kupowaniem, ale też ze „ślepym” portfelem, który trzyma stały udział BTC równy średniemu udziałowi aktywnego portfela '
+                f'(ok. {pc(r2["avg_w"])}) i nie patrzy na żadne sygnały. Dopiero przewaga nad nim pokazuje, że sygnały coś dają, a nie tylko mniejsza ilość bitcoina.</p>'
+                f'<div class="tw"><table class="tbl"><tr><th></th><th>Lepszy od regularnego kupowania</th><th>Stosunek do niego: mediana (10–90%)</th>'
+                f'<th>Lepszy od ślepego portfela</th><th>Najgorszy spadek vs regularne</th><th>Najgorszy spadek vs ślepy</th></tr>{wr}</table></div>'
+                f'<p class="note"><b>Wniosek:</b> aktywny portfel wygrywa z regularnym kupowaniem w mniej niż połowie okien, a jego płytsze dołki biorą się z trzymania mniej BTC '
+                f'(względem ślepego portfela różnica w dołkach jest bliska zera). Za to od ślepego portfela o tej samej ekspozycji jest zwykle lepszy, więc sygnały nie są bezużyteczne. '
+                f'{citxt}{h1n}</p>'
+                f'<h3 class="ct" style="margin-top:18px">Jak bardzo wynik zależy od wyboru okna trendu?</h3>'
+                f'<p class="muted sm" style="margin:0 0 10px">Sama reguła trendu (100% w BTC po wzroście w ostatnich N dniach, inaczej 25%), stosunek wartości do regularnego kupowania. '
+                f'Okno 28 dni wybraliśmy, znając historię, a wynik mocno zależy od tego wyboru: to ostrzeżenie przed traktowaniem liczby „od 2018” jak dowodu.</p>'
+                f'<div class="tw"><table class="tbl"><tr><th>Okno trendu</th><th>Od 2018</th><th>Egzamin (od 29.10.2024)</th></tr>{fr}</table></div></div>')
     return out
 
 
@@ -1193,18 +1253,25 @@ def whales_html(CF, df=None, ens=None):
         tl += "".join(f'<div class="card tile"><span class="muted sm">{a}</span><b>{b}</b><span class="muted sm">{d}</span></div>' for a, b, d in ent)
     tbl = ""
     if CF:
-        lab = {"confirmed": ("potwierdzona", "pos"), "rejected": ("nie potwierdzona", "muted"), "reverse": ("działa odwrotnie", "neg"), "collect": ("zbieramy dane", "muted")}
+        lab = {"confirmed": ("potwierdzona", "pos"), "rejected": ("nie potwierdzona", "muted"), "reverse": ("działa odwrotnie", "neg"),
+               "collect": ("zbieramy dane", "muted"), "retired": ("wygasła, już nie używamy", "muted")}
         rows = ""
         for r in CF["rows"]:
             st, cls = lab[r["status"]]
+            mde = f' Ten test wykryłby korelację od ok. {r["mde_rho"]:.2f} wzwyż.' if r.get("mde_rho") else ""
             if r["status"] == "collect":
-                det = f'{r["n"]} z {CO.MIN_DAYS} dni'
+                det = f'{r["n"]} z {r.get("min_n", CO.MIN_DAYS)} dni' + (f' (liczone od {r["from"]})' if r.get("from") else "") + "." + mde
             else:
                 okres = {1: "następny dzień", 7: "tydzień"}.get(r["h"], "miesiąc")
                 fp = lambda p: f"{p:.4f}" if p < 0.01 else f"{p:.2f}"
                 hac = f', z poprawką Neweya-Westa {fp(r["p_hac"])}' if r.get("p_hac") is not None else ""
                 det = (f'korelacja {r["r"]:+.2f}, p = {fp(r["p"])}{hac}. Średni zwrot BTC przez {okres} po najniższych wartościach: {r["ret_lo"]:+.1f}%, '
-                       f'po najwyższych: {r["ret_hi"]:+.1f}%').replace(".", ",").replace(", Średni", ". Średni")
+                       f'po najwyższych: {r["ret_hi"]:+.1f}%.').replace(".", ",").replace(", Średni", ". Średni").rstrip(",") + mde
+                hl_ = r.get("health") or {}
+                if hl_.get("now"):
+                    nw = hl_["now"]
+                    det += (f' Zdrowie (ostatnie 3 lata): korelacja {nw["rho"]:+.2f}, p {nw["p_hac"]:.2f}; '
+                            f'przegląd emerytalny {hl_["next_check"]}.')
             rows += f'<tr><td><b>{r["id"]}</b></td><td>{html.escape(r["text"])}</td><td class="{cls}"><b>{st}</b></td><td class="sm muted">{det}</td></tr>'
         nc = len(CF["confirmed"])
         ids = [r["id"] for r in CF["rows"] if r["status"] == "confirmed"]
@@ -1243,7 +1310,10 @@ def whales_html(CF, df=None, ens=None):
                f'partia 3 (H11–H13) pomysłów z przeglądu badań: stablecoinów i rynku opcji. '
                f'Każda hipoteza ma z góry wpisany kierunek. Żeby uznać ją za prawdziwą, wynik musi być bardzo mało prawdopodobny jako przypadek '
                f'(p poniżej {thrs}) i powtórzyć się w obu połowach historii. Dane z dnia D wchodzą do testu dopiero od dnia D+1. '
-               f'Dla porównania podajemy też p z poprawką Neweya-Westa na nakładające się zwroty: zwykle wychodzi niższe, czyli nasza metoda jest ostrożniejsza.</p>'
+               f'Dla porównania podajemy też p z poprawką Neweya-Westa na nakładające się zwroty: zwykle wychodzi niższe, czyli nasza metoda jest ostrożniejsza. '
+               f'Przy każdej hipotezie piszemy, jak silny efekt test w ogóle mógłby wykryć: „nie potwierdzona” przy słabym teście nie znaczy „efektu nie ma”, tylko „nie da się go wykazać”. '
+               f'H14 to H7 sprawdzana wyłącznie na danych po dniu jej zapisania: to jedyny czysty dowód. Potwierdzone sygnały mają też regułę emerytury, spisaną 30.10.2026: '
+               f'jeśli na dwóch kolejnych corocznych przeglądach (od 29.10.2027) w ostatnich 3 latach będą zarówno nieistotne (p &gt; 0,10), jak i słabe (korelacja &lt; 0,03), przestajemy ich używać.</p>'
                + f'<div class="tw"><table class="tbl"><tr><th></th><th>Hipoteza</th><th>Wynik</th><th>Szczegóły</th></tr>{rows}</table></div>'
                f'<p class="note"><b>Wniosek:</b> {verdict}</p>{decay}'
                f'<p class="muted sm" style="margin:8px 0 0">Źródła: <a href="https://www.tftc.io/bitcoin-etf-flows" target="_blank" rel="noopener">TFTC Bitcoin ETF Tracker</a> (wolna licencja Creative Commons), '

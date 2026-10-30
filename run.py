@@ -166,6 +166,10 @@ def update(full=False):
     res["quality"] = {h: {"active": v["alpha"] > 0, "n": v["n"]} for h, v in ens["horizons"].items()}
     log = store.update_log(res, df)
     stats = store.log_stats(log)
+    try:                                                         # dziennik na przyszłość: każda metoda, tylko dopisywany
+        ens["ledger"] = store.ledger_stats(store.update_ledger(res["asof"], res["price"], ens, df["close"]))
+    except Exception as e:
+        print("  [uwaga] dziennik metod:", str(e)[:120])
 
     C.OUT_DIR.mkdir(exist_ok=True)
     slim = {k: v for k, v in res.items() if k != "frame"}

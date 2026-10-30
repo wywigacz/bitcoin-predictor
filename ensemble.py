@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from scipy.stats import norm
+from scipy.stats import t as tdist
 from sklearn.ensemble import HistGradientBoostingRegressor
 
 import config as C
@@ -368,7 +369,7 @@ def walk_forward(Zv, zt, H, N, comp_col, knn_cols, Zraw_comp, dates=None, P=None
     Wa = np.nan_to_num(Wz.to_numpy(float), nan=0.0) if Wz is not None else None
     Wvalid = Wz.notna().to_numpy() if Wz is not None else None
     sel, next_sel = None, 0
-    step = C.WF_STEP
+    step = _step(H)
     T = list(range(C.WF_START, N - H, step))
     T_all = T + [N - 1]
     out = {m: np.full((len(T_all), 7), np.nan) for m in MODELS}
@@ -455,7 +456,15 @@ def walk_forward(Zv, zt, H, N, comp_col, knn_cols, Zraw_comp, dates=None, P=None
     return out, np.array(T_all), yv, info
 
 
+def _step(H):
+    """Krok testu „jak na żywo”: krótkie horyzonty co dzień (7× więcej prób), długie co tydzień (koszt obliczeń).
+    Zmiana z 2026-10-30 (punkt 4 planu); wcześniej wszystkie horyzonty co 7 dni."""
+    return 1 if H <= 7 else C.WF_STEP
+
+
 def _dm(l0, l1, lag):
+    """Test Diebolda-Mariano (jednostronny: czy l1 ma mniejszą stratę), błąd Neweya-Westa z oknem lag,
+    z poprawką Harveya, Leybourne'a i Newbolda (1997) dla małych prób i rozkładem t (od 2026-10-30)."""
     d = l0 - l1
     d = d[np.isfinite(d)]
     if len(d) < 30:
@@ -467,7 +476,25 @@ def _dm(l0, l1, lag):
     for k in range(1, lag + 1):
         var += 2 * (1 - k / (lag + 1)) * (dc[k:] @ dc[:-k] / n)
     t = mu / np.sqrt(max(var, 1e-12) / n)
-    return float(t), float(1 - norm.cdf(t))
+    h = max(lag, 1)
+    t *= np.sqrt(max(n + 1 - 2 * h + h * (h - 1) / n, 1.0) / n)
+    return float(t), float(1 - tdist.cdf(t, n - 1))
+
+
+def _mde(l0, l1, lag, alpha=0.10, power=0.80):
+    """Najmniejsza przewaga (ułamek straty „bez zmian”), którą ten test wykryłby w 4 na 5 przypadków przy danej liczbie prób."""
+    d = l0 - l1
+    ok = np.isfinite(d)
+    d, l0 = d[ok], l0[ok]
+    if len(d) < 30:
+        return np.nan
+    n = len(d)
+    dc = d - d.mean()
+    var = dc @ dc / n
+    for k in range(1, lag + 1):
+        var += 2 * (1 - k / (lag + 1)) * (dc[k:] @ dc[:-k] / n)
+    se = np.sqrt(max(var, 1e-12) / n)
+    return float((norm.ppf(1 - alpha) + norm.ppf(power)) * se / l0.mean())
 
 
 def calibrate(q, y, lag):
@@ -491,7 +518,7 @@ def calibrate(q, y, lag):
 def combine(out, y, H):
     """Zespół z wagami online (tylko przeszłość) + kalibracja pokrycia. Ostatni wiersz to prognoza bieżąca."""
     nT = len(y)
-    lag = int(np.ceil(H / C.WF_STEP)) + 1
+    lag = int(np.ceil(H / _step(H))) + 1
     raw = out
     out = {}
     for m in MODELS:
@@ -570,7 +597,7 @@ HOLDOUT_P = 0.10
 
 
 def holdout(out, cens, y, H, dates):
-    lag = int(np.ceil(H / C.WF_STEP)) + 1
+    lag = int(np.ceil(H / _step(H))) + 1
     eq = np.sort(np.nanmean(np.stack([out[m] for m in MODELS[1:]]), axis=0), axis=1)
     cand = {**{m: out[m] for m in MODELS}, "eq": eq, "ens": cens}
     d = pd.DatetimeIndex(dates)
@@ -585,7 +612,8 @@ def holdout(out, cens, y, H, dates):
         lp, lo = _pinball(np.nan_to_num(y), q), _pinball(np.nan_to_num(y), out["naive"])
         t_, p_ = _dm(lo[oko], lp[oko], lag) if m != "naive" else (np.nan, np.nan)
         rows[m] = {"skill_pre": float(1 - lp[okp].mean() / lo[okp].mean()), "skill_post": float(1 - lp[oko].mean() / lo[oko].mean()),
-                   "p_post": p_, "n_pre": int(okp.sum()), "n_post": int(oko.sum()),
+                   "p_post": p_, "n_pre": int(okp.sum()), "n_post": int(oko.sum()), "n_eff_post": float(oko.sum() / lag),
+                   "mde_post": _mde(lo[oko], lp[oko], lag) if m != "naive" else np.nan,
                    "cov80_post": float(np.mean((y[oko] >= q[oko, 1]) & (y[oko] <= q[oko, 5])))}
     cands = {m: r for m, r in rows.items() if m != "naive"}
     if not cands:
@@ -593,11 +621,14 @@ def holdout(out, cens, y, H, dates):
     best = max(cands, key=lambda m: cands[m]["skill_pre"])
     b = cands[best]
     passed = b["skill_pre"] > 0 and b["skill_post"] > 0 and np.isfinite(b["p_post"]) and b["p_post"] < HOLDOUT_P
-    return {"rows": rows, "chosen": best, "passed": bool(passed), "from": str(HOLDOUT.date()), "q_live": cand[best][-1].tolist()}
+    # mniej niż 20 niezależnych obserwacji na egzaminie: brak wyniku to „nierozstrzygnięte”, a nie „nie zdany”
+    # (dopuszczenia do prognozy to nie zmienia: nierozstrzygnięte nadal znaczy „nie używamy”)
+    verdict = "passed" if passed else ("inconclusive" if b["n_eff_post"] < 20 else "failed")
+    return {"rows": rows, "chosen": best, "passed": bool(passed), "verdict": verdict, "from": str(HOLDOUT.date()), "q_live": cand[best][-1].tolist()}
 
 
 def evaluate(out, cens, y, H, L):
-    lag = int(np.ceil(H / C.WF_STEP)) + 1
+    lag = int(np.ceil(H / _step(H))) + 1
     ok = np.isfinite(y) & np.isfinite(cens).all(axis=1) & np.isfinite(out["naive"]).all(axis=1)
     rows = []
     l0 = L["naive"][ok]
@@ -606,7 +637,7 @@ def evaluate(out, cens, y, H, L):
         lm = L[m][ok]
         t, p = _dm(l0, lm, lag) if m != "naive" else (np.nan, np.nan)
         rows.append({"model": m, "label": LABELS[m], "loss": float(np.nanmean(lm)), "skill": float(1 - np.nanmean(lm) / np.nanmean(l0)),
-                     "dm_t": t, "dm_p": p, "cover80": cover(out[m])})
+                     "dm_t": t, "dm_p": p, "cover80": cover(out[m]), "mde": _mde(l0, lm, lag) if m != "naive" else np.nan})
     # prosta średnia wszystkich metod (1/N): w badaniach często wygrywa z wyszukanym ważeniem („forecast combination puzzle”)
     eq = np.sort(np.nanmean(np.stack([out[m] for m in MODELS[1:]]), axis=0), axis=1)
     okq = ok & np.isfinite(eq).all(axis=1)
@@ -639,11 +670,11 @@ def scale_test(P, sig, sigH, H, dates):
     y[: N - H] = np.log(P[H:] / P[: N - H])
     s_old = sig * np.sqrt(H)
     z_old, z_new = y / s_old, y / sigH
-    lag = int(np.ceil(H / C.WF_STEP)) + 1
+    lag = int(np.ceil(H / _step(H))) + 1
     terc = pd.Series(sig).rolling(1095, min_periods=365)
     lo_q, hi_q = terc.quantile(1 / 3).to_numpy(), terc.quantile(2 / 3).to_numpy()
     rows = []
-    for t in range(C.WF_START, N - H, C.WF_STEP):
+    for t in range(C.WF_START, N - H, _step(H)):
         pool = np.arange(400, max(t - H + 1, 400))
         pool = pool[np.isfinite(z_old[pool]) & np.isfinite(z_new[pool])]
         if len(pool) < C.MIN_TRAIN or not (np.isfinite(sigH[t]) and np.isfinite(y[t])):
@@ -697,7 +728,7 @@ def run(df, ev, f, sc, comp, reg=None, world_T=None, conf=None, horizons=None):
         zt[: N - H] = np.log(P[H:] / P[: N - H]) / scale_arr[: N - H]
         out, T, y, info = walk_forward(Z, zt, H, N, "comp", knn_cols, Z["comp"].to_numpy(float), df.index, P, Wz, ca)
         cens, ens, wts, alphas, cal, L, out = combine(out, y, H)
-        lag = int(np.ceil(H / C.WF_STEP)) + 1
+        lag = int(np.ceil(H / _step(H))) + 1
         qa = aci(cens, y, lag)
         e0, c80_0, c90_0 = _cov_err(cens, y)
         e1, c80_1, c90_1 = _cov_err(qa, y)
