@@ -26,6 +26,7 @@ import regularity
 import report
 import rv
 import scan
+import sim
 import sources
 import store
 import touch
@@ -137,11 +138,19 @@ def update(full=False):
     ens["short"] = {h: ens["horizons"].pop(h) for h in SHORT}
     ens["forecasts"] = [f for f in ens["forecasts"] if f["horizon"] not in SHORT]
     print("Szanse dotknięcia poziomów ceny ...")
-    TCH = None
+    TCH, SIM = None, None
+    sig_now = ensemble.vol_models(df)[0]
     try:
-        TCH = touch.run(df, ensemble.vol_models(df)[0])
+        TCH = touch.run(df, sig_now)
     except Exception as e:
         print("  [uwaga] szanse dotknięcia:", str(e)[:120])
+    print("Wirtualny portfel (decyzja dnia i test na historii) ...")
+    try:
+        SIM = sim.run(df, sig_now)
+        if SIM.get("live"):
+            print(f"  portfel: {SIM['live']['value']:,.0f} zł przy wpłatach {SIM['live']['deposited']:,.0f} zł, w BTC {SIM['live']['w'] * 100:.0f}%")
+    except Exception as e:
+        print("  [uwaga] wirtualny portfel:", str(e)[:120])
     res["forecasts"] = ens["forecasts"]
     for f in res["forecasts"]:
         f["pred_z"] = 0.0
@@ -167,7 +176,7 @@ def update(full=False):
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
     slim["touch"] = {k: v for k, v in TCH.items()} if TCH else None
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
-    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF, TCH)
+    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF, TCH, SIM)
     print_summary(res)
     return res
 

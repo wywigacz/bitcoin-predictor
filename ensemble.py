@@ -562,6 +562,39 @@ def _cov_err(q, y):
     return abs(c80 - 0.8) + abs(c90 - 0.9), float(c80), float(c90)
 
 
+HOLDOUT = pd.Timestamp("2024-10-29")
+# Reguła egzaminu (spisana 2026-10-29, przed zobaczeniem wyników): wybór metody tylko na prognozach, których wynik był znany
+# przed HOLDOUT; zwycięzca wchodzi do prognozy od dziś tylko, jeśli na odciętych 2 latach też bije „bez zmian” z p < 0,10 (DM, HAC).
+HOLDOUT_P = 0.10
+
+
+def holdout(out, cens, y, H, dates):
+    lag = int(np.ceil(H / C.WF_STEP)) + 1
+    eq = np.sort(np.nanmean(np.stack([out[m] for m in MODELS[1:]]), axis=0), axis=1)
+    cand = {**{m: out[m] for m in MODELS}, "eq": eq, "ens": cens}
+    d = pd.DatetimeIndex(dates)
+    pre = (d + pd.Timedelta(days=H) < HOLDOUT) & np.isfinite(y)
+    post = (d >= HOLDOUT) & np.isfinite(y)
+    rows = {}
+    for m, q in cand.items():
+        okp = pre & np.isfinite(q).all(axis=1) & np.isfinite(out["naive"]).all(axis=1)
+        oko = post & np.isfinite(q).all(axis=1) & np.isfinite(out["naive"]).all(axis=1)
+        if okp.sum() < 30 or oko.sum() < 10:
+            continue
+        lp, lo = _pinball(np.nan_to_num(y), q), _pinball(np.nan_to_num(y), out["naive"])
+        t_, p_ = _dm(lo[oko], lp[oko], lag) if m != "naive" else (np.nan, np.nan)
+        rows[m] = {"skill_pre": float(1 - lp[okp].mean() / lo[okp].mean()), "skill_post": float(1 - lp[oko].mean() / lo[oko].mean()),
+                   "p_post": p_, "n_pre": int(okp.sum()), "n_post": int(oko.sum()),
+                   "cov80_post": float(np.mean((y[oko] >= q[oko, 1]) & (y[oko] <= q[oko, 5])))}
+    cands = {m: r for m, r in rows.items() if m != "naive"}
+    if not cands:
+        return {"rows": rows}
+    best = max(cands, key=lambda m: cands[m]["skill_pre"])
+    b = cands[best]
+    passed = b["skill_pre"] > 0 and b["skill_post"] > 0 and np.isfinite(b["p_post"]) and b["p_post"] < HOLDOUT_P
+    return {"rows": rows, "chosen": best, "passed": bool(passed), "from": str(HOLDOUT.date()), "q_live": cand[best][-1].tolist()}
+
+
 def evaluate(out, cens, y, H, L):
     lag = int(np.ceil(H / C.WF_STEP)) + 1
     ok = np.isfinite(y) & np.isfinite(cens).all(axis=1) & np.isfinite(out["naive"]).all(axis=1)
@@ -620,13 +653,17 @@ def run(df, ev, f, sc, comp, reg=None, world_T=None, conf=None, horizons=None):
         if use_aci:
             cens = qa
         rows, nok = evaluate(out, cens, y, H, L)
+        ho = holdout(out, cens, y, H, df.index[T])
         q = cens[-1]
+        if ho.get("passed") and ho["chosen"] != "ens":           # zdał egzamin na odciętych 2 latach: wchodzi do prognozy od dziś
+            q = np.array(ho["q_live"])
         scale = sig[-1] * np.sqrt(H)
         prices = {f"p{int(a * 100)}": float(P[-1] * np.exp(scale * v)) for a, v in zip(QS, q)}
         cdf0 = float(np.interp(0.0, q, QS, left=0.0, right=1.0)) if np.all(np.diff(q) > 0) else 0.5
         res["horizons"][H] = {"table": rows, "n": nok, "weights": dict(zip(MODELS, map(float, wts[-1]))), "alpha": float(alphas[-1]),
                               "calibration": float(cal[-1]), "live_z": {m: out[m][-1].tolist() for m in MODELS}, "ens_z": q.tolist(),
-                              "explain": info, "sigma_H": float(sig[-1] * np.sqrt(H)), "aci": aci_info}
+                              "explain": info, "sigma_H": float(sig[-1] * np.sqrt(H)), "aci": aci_info,
+                              "holdout": {k: v for k, v in ho.items() if k != "q_live"}}
         view = np.nanmean([out["comp"][-1], out["ridge"][-1]], axis=0)       # pogląd modeli wskaźników (bez potwierdzonej przewagi)
         vcdf0 = float(np.interp(0.0, view, QS, left=0.0, right=1.0)) if np.all(np.diff(view) > 0) else 0.5
         res["forecasts"].append({"horizon": H, "target": (df.index[-1] + pd.Timedelta(days=H)).strftime("%Y-%m-%d"),

@@ -612,6 +612,54 @@ def touch_html(TC):
             + '</div>')
 
 
+def exam_html(ens, TCH=None, SIM=None):
+    """Egzamin na odciętych 2 latach: wybór tylko na danych sprzed odcięcia, jeden sprawdzian na ostatnich 2 latach."""
+    if not ens:
+        return ""
+    pl = lambda v: "–" if v is None or v != v else f"{v * 100:+.1f}%".replace(".", ",")
+    zl = lambda v: f"{v:,.0f} zł".replace(",", " ")
+    lab = lambda m: MODEL_LAB.get(m, "Zespół metod (z bramką)" if m == "ens" else m)
+    rows, start = "", None
+    for H, v in sorted(ens["horizons"].items(), key=lambda a: int(a[0])):
+        ho = v.get("holdout") or {}
+        if not ho.get("chosen"):
+            continue
+        start = ho.get("from")
+        r = ho["rows"][ho["chosen"]]
+        p = r["p_post"]
+        verdict = '<b class="pos">zdany, w prognozie od dziś</b>' if ho["passed"] else '<span class="muted">nie zdany</span>'
+        rows += (f'<tr><td><b>{H} dni</b></td><td>{html.escape(lab(ho["chosen"]))}</td><td>{pl(r["skill_pre"])}</td>'
+                 f'<td class="{"pos" if r["skill_post"] > 0 else "neg"}">{pl(r["skill_post"])}</td>'
+                 f'<td>{"–" if p != p else f"{p:.2f}".replace(".", ",")}</td><td>{r["n_post"]}</td><td>{verdict}</td></tr>')
+    out = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Egzamin na ostatnich 2 latach</h3>'
+           f'<p class="muted sm" style="margin:0 0 10px">Odcinamy ostatnie 2 lata (od {start or "2024-10-29"}). Metodę, wariant i strategię wybieramy wyłącznie na danych sprzed tej daty, '
+           f'a potem sprawdzamy je raz na odciętym okresie, którego przy wyborze „nie widziały”. Do prognozy od dziś wchodzi tylko to, co wygrywa z założeniem „bez zmian” '
+           f'zarówno przed odcięciem, jak i na egzaminie, z małą szansą przypadku (p &lt; 0,10). Regułę spisaliśmy przed zobaczeniem wyników. '
+           f'Nie poprawiamy modelu, dopóki egzamin nie wyjdzie dobrze: to byłoby uczenie się na pamięć tych dwóch lat.</p>')
+    if rows:
+        out += (f'<h3 class="ct" style="margin-top:6px">Prognoza zakresu ceny</h3>'
+                f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Wybrana metoda</th><th>Przewaga przed</th><th>Przewaga na egzaminie</th><th>p</th><th>Prób</th><th>Wynik</th></tr>{rows}</table></div>'
+                f'<p class="muted sm" style="margin:6px 0 0">Na długich horyzontach prognozy z 2 lat mocno się nakładają (np. dla 180 dni to w praktyce 3–4 niezależne okresy), więc egzamin jest tam surowy.</p>')
+    if TCH and TCH.get("variants"):
+        import touch as TO
+        tr = "".join(f'<tr><td>{"<b>" if m == TCH["best"] else ""}{TO.LABELS[m]}{" (wybrany)</b>" if m == TCH["best"] else ""}</td>'
+                     f'<td>{pl(v.get("skill_pre"))}</td><td class="{"pos" if (v.get("skill_post") or 0) > 0 else "neg"}">{pl(v.get("skill_post"))}</td></tr>'
+                     for m, v in TCH["variants"].items())
+        out += (f'<h3 class="ct" style="margin-top:18px">Szanse dotknięcia poziomów</h3>'
+                f'<div class="tw"><table class="tbl"><tr><th>Wariant</th><th>Przewaga przed</th><th>Przewaga na egzaminie</th></tr>{tr}</table></div>')
+    ex = ((SIM or {}).get("backtest") or {}).get("exam")
+    if ex:
+        a, d = ex["active"], ex["dca"]
+        out += (f'<h3 class="ct" style="margin-top:18px">Wirtualny portfel</h3>'
+                f'<div class="tw"><table class="tbl"><tr><th>Od {ex["start"]}, wpłaty {zl(a["deposited"])}</th><th>Aktywny portfel</th><th>Regularne kupowanie</th></tr>'
+                f'<tr><td>Wartość dziś</td><td><b>{zl(a["final"])}</b></td><td>{zl(d["final"])}</td></tr>'
+                f'<tr><td>Roczny zwrot (bez wpływu wpłat)</td><td><b>{pl(a["twr_ann"])}</b></td><td>{pl(d["twr_ann"])}</td></tr>'
+                f'<tr><td>Największy spadek po drodze</td><td><b>{pl(a["max_dd"])}</b></td><td>{pl(d["max_dd"])}</td></tr></table></div>'
+                f'<p class="muted sm" style="margin:6px 0 0">Zastrzeżenie: regułę trendu potwierdziliśmy testem H7 na całej historii, łącznie z tymi 2 latami, więc dla portfela nie jest to w pełni czysty egzamin. '
+                f'Czysty sprawdzian to portfel na żywo, prowadzony od 28 października 2026.</p>')
+    return out + "</div>"
+
+
 def short_html(ens):
     """Krótkie horyzonty (1 i 3 dni): setki razy więcej niezależnych prób, więc słaba przewaga ma szansę wyjść w teście."""
     sh = (ens or {}).get("short")
@@ -845,6 +893,70 @@ def _pl_decimals(page):
     i = page.index("<script>")
     parts = re.split(r"(<style.*?</style>|<[^>]+>)", page[:i], flags=re.S)
     return "".join(p if p.startswith("<") else re.sub(r"(?<=\d)\.(?=\d)", ",", p) for p in parts) + page[i:]
+
+
+def sim_html(SM):
+    """Wirtualny, aktywnie zarządzany portfel: stan, ostatnie decyzje z uzasadnieniem, test na historii."""
+    if not SM:
+        return '<div class="card empty"><b>Portfel jeszcze się nie uruchomił</b><p class="muted">Pierwsza decyzja pojawi się po najbliższej aktualizacji.</p></div>'
+    import sim as SI
+    zl = lambda v: f"{v:,.0f} zł".replace(",", " ")
+    pc = lambda v: f"{v * 100:.0f}%"
+    pl = lambda v: f"{v * 100:+.1f}%".replace(".", ",")
+    out = ""
+    L = SM.get("live")
+    if L:
+        gain = L["value"] / L["deposited"] - 1
+        diff = L["value"] - L["dca_value"]
+        bars = "".join(f'<div class="sig sm-row"><div class="sig-l"><b>{k.capitalize()}</b><span class="muted sm"> chce {pc(L["t"][k])} w BTC</span></div>'
+                       f'<div class="dv"><span class="g" style="left:0;width:{L["p"][k] * 100:.0f}%"></span></div><div class="sig-v"><b>{pc(L["p"][k])}</b></div></div>'
+                       for k in SI.STRATS)
+        tiles = [("Wartość portfela", zl(L["value"]), f"stan na {L['date']}"),
+                 ("Wpłacono", zl(L["deposited"]), f"wynik {pl(gain)}"),
+                 ("W porównaniu z regularnym kupowaniem", f'{"+" if diff >= 0 else "−"}{zl(abs(diff))}', f"regularne kupowanie: {zl(L['dca_value'])}"),
+                 ("Teraz w BTC", pc(L["w"]), f"reszta w gotówce: {zl(L['cash'])}")]
+        tl = "".join(f'<div class="card tile"><span class="muted sm">{a}</span><b>{b}</b><span class="muted sm">{c}</span></div>' for a, b, c in tiles)
+        last = L["log"][0]
+        logrows = ""
+        for r in L["log"]:
+            act = {"KUP": "kupno", "SPRZEDAJ": "sprzedaż", "TRZYMAJ": "bez zmian"}[r["action"]]
+            cls = {"KUP": "pos", "SPRZEDAJ": "neg", "TRZYMAJ": "muted"}[r["action"]]
+            dep = f' <span class="muted sm">(+{zl(r["deposit"])} wpłaty)</span>' if r["deposit"] else ""
+            logrows += (f'<tr><td>{r["date"]}{dep}</td><td class="{cls}"><b>{act}</b>{" " + zl(r["amount_pln"]) if r["action"] != "TRZYMAJ" else ""}</td>'
+                        f'<td>{pc(r["w_before"])} → {pc(r["target"])}</td><td>{zl(r["value"])}</td></tr>'
+                        f'<tr class="why"><td colspan="4" class="muted sm">{html.escape(r["why"])}</td></tr>')
+        out += (f'<div class="tiles">{tl}</div>'
+                f'<div class="two2" style="margin-top:18px"><div class="panel"><h3 class="ct">Ostatnia decyzja ({last["date"]})</h3>'
+                f'<p style="margin:0">{html.escape(last["why"])}</p></div>'
+                f'<div class="panel"><h3 class="ct">Czego się nauczył: wagi strategii</h3>'
+                f'<p class="muted sm" style="margin:0 0 8px">Strategia, która w ostatnim roku zarobiłaby więcej, dostaje większy głos (algorytm Hedge). Najmniej 5% dla każdej.</p>{bars}</div></div>'
+                f'<div class="panel" style="margin-top:18px"><h3 class="ct">Dziennik decyzji (najnowsze na górze)</h3>'
+                f'<div class="tw"><table class="tbl"><tr><th>Dzień</th><th>Decyzja</th><th>Udział BTC</th><th>Wartość</th></tr>{logrows}</table></div></div>')
+    b = SM["backtest"]
+    a, d = b["active"], b["dca"]
+    cv = b["curve"]
+    n = len(cv["a"])
+    mx = max(max(cv["a"]), max(cv["b"])) or 1
+    W_, H_ = 640, 220
+    pts = lambda arr: " ".join(f"{i / (n - 1) * W_:.1f},{H_ - v / mx * H_:.1f}" for i, v in enumerate(arr))
+    yrs = sorted({s[:4] for s in cv["d"]})
+    ticks = "".join(f'<text x="{cv["d"].index(next(s for s in cv["d"] if s.startswith(y))) / (n - 1) * W_:.0f}" y="{H_ + 16}" class="ax">{y}</text>' for y in yrs[::2])
+    svg = (f'<svg viewBox="0 -6 {W_} {H_ + 24}" role="img" aria-label="Wartość portfela aktywnego i regularnego kupowania od {b["start"]}" style="width:100%;height:auto">'
+           f'<polyline points="{pts(cv["dep"])}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 4"/>'
+           f'<polyline points="{pts(cv["b"])}" fill="none" stroke="var(--amber)" stroke-width="2"/>'
+           f'<polyline points="{pts(cv["a"])}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>{ticks}</svg>')
+    row = lambda lab, f: f'<tr><td>{lab}</td><td><b>{f(a)}</b></td><td>{f(d)}</td></tr>'
+    tbl = (row("Wartość na koniec", lambda s: zl(s["final"])) + row("Zysk względem wpłat", lambda s: pl(s["gain_pct"]))
+           + row("Roczny zwrot (bez wpływu wpłat)", lambda s: pl(s["twr_ann"])) + row("Największy spadek po drodze", lambda s: pl(s["max_dd"])))
+    out += (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Test na historii: te same zasady od {b["start"]}</h3>'
+            f'<p class="muted sm" style="margin:0 0 10px">Wpłaty łącznie {zl(a["deposited"])}. Linia pomarańczowa: zwykłe regularne kupowanie. '
+            f'Linia w kolorze akcentu: aktywny portfel. Przerywana: suma wpłat. Portfel zawarł {b["trades"]} transakcji, średnio trzymał {pc(b["avg_btc"])} w BTC, '
+            f'prowizje są wliczone.</p>{svg}'
+            f'<div class="tw"><table class="tbl" style="margin-top:10px"><tr><th></th><th>Aktywny portfel</th><th>Regularne kupowanie</th></tr>{tbl}</table></div>'
+            f'<p class="note"><b>Uczciwie:</b> ten wynik jest optymistyczny. Strategię trendu wybraliśmy, wiedząc z testu H7, że trend działał właśnie w tych latach, '
+            f'a test na historii nie zna przyszłych zmian rynku. Prawdziwą miarą jest portfel na żywo powyżej: jego decyzje zapisujemy co dzień i nigdy ich nie poprawiamy wstecz. '
+            f'Podatek (19%, PIT-38) i ryzyko giełdy pominięte.</p></div>')
+    return out
 
 
 def plan_data(df):
@@ -1123,7 +1235,7 @@ def markets_html(M, df):
             f'<h3 class="ct" style="margin-top:18px">Obligacje</h3><p class="muted sm" style="margin:0 0 8px">Ujemne: gdy obligacje drożeją (ucieczka do bezpieczeństwa), Bitcoin zwykle tanieje.</p>{bnd}</div></div>{an}')
 
 
-def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None, TCH=None):
+def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None, TCH=None, SIM=None):
     fr = res["frame"]
     reg_tiles, reg_verdict = regularity_html(Rg)
     scan_head, scan_body = scan_html(S)
@@ -1193,7 +1305,8 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=No
             .replace("%%EXTRA%%", extra_html())
             .replace("%%WHALES%%", whales_html(CF, df, ens))
             .replace("%%TOUCH%%", touch_html(TCH))
-            .replace("%%SHORTH%%", short_html(ens))
+            .replace("%%SIMPORT%%", sim_html(SIM))
+            .replace("%%SHORTH%%", short_html(ens) + exam_html(ens, TCH, SIM))
             .replace("%%NSERIES%%", n(S["summary"]["n_series"], 0) if S else "kilkaset")
             .replace("%%REGULARITY%%", reg_tiles)
             .replace("%%REGVERDICT%%", reg_verdict)

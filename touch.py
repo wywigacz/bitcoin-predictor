@@ -19,6 +19,7 @@ RNG = np.random.default_rng(7)
 HALF = 30.0
 START = "2013-01-01"
 VARIANTS = ("base", "fhs", "drift", "fhs_drift")
+HOLDOUT = pd.Timestamp("2024-10-29")                  # egzamin: ostatnie 2 lata odcięte od wyboru wariantu
 LABELS = {"base": "Zmienność wraca do normy", "fhs": "Zmienność reaguje na ruchy (FHS, GARCH)",
           "drift": "Z dryfem z ostatnich 4 lat", "fhs_drift": "FHS z dryfem"}
 
@@ -97,7 +98,7 @@ def run(df, sig, horizons=(7, 30, 90), n=20000):
     r_pct = np.nan_to_num(dlr * 100)
     gp = _garch(r_pct[np.searchsorted(df.index, pd.Timestamp(START)):])
     cal = calibrate(df, sig, z)
-    best = min(cal, key=lambda m: cal[m]["brier"])
+    best = max(cal, key=lambda m: cal[m]["skill_pre"])           # wybór tylko na danych sprzed egzaminu
     mu = _mu(dlr, len(df) - 1)
     sims = {H: _paths(s0, s_lr, pool, H, n, best, gp, mu) for H in horizons}
     table = []
@@ -165,7 +166,11 @@ def calibrate(df, sig, z, H=30, rels=(-0.2, -0.1, 0.1, 0.2), n=3000, step=7):
             if mm.sum() >= 30:
                 base[i] = hit[mm].mean()
         ok = np.isfinite(base)
-        pred, hit, which, base = pred[ok], hit[ok], which[ok], base[ok]
+        pred, hit, which, base, when = pred[ok], hit[ok], which[ok], base[ok], when[ok]
+        cut = int(np.searchsorted(idx, HOLDOUT))
+        pre, post = when + H < cut, when >= cut                # egzamin: wybór na „pre”, sprawdzian na „post”
+        sk = lambda m_: float(1 - np.mean((pred[m_] - hit[m_]) ** 2) / np.mean((base[m_] - hit[m_]) ** 2)) if m_.sum() > 20 else np.nan
+        exam = {"skill_pre": sk(pre), "skill_post": sk(post), "n_post": int(post.sum())}
         bins = [0, 0.1, 0.2, 0.35, 0.5, 0.7, 1.0]
         rows = []
         for lo, hi in zip(bins[:-1], bins[1:]):
@@ -178,5 +183,5 @@ def calibrate(df, sig, z, H=30, rels=(-0.2, -0.1, 0.1, 0.2), n=3000, step=7):
         rel0, res0, _ = _brier_parts(base, hit)
         side = {float(x): (float(pred[which == x].mean()), float(hit[which == x].mean())) for x in rels}
         out[m] = {"rows": rows, "n": int(len(pred)), "brier": brier, "brier_base": brier0, "skill": 1 - brier / brier0, "H": H,
-                  "side": side, "reliability": rel, "resolution": res, "uncertainty": unc, "reliability_base": rel0, "resolution_base": res0}
+                  "side": side, "reliability": rel, "resolution": res, "uncertainty": unc, "reliability_base": rel0, "resolution_base": res0, **exam}
     return out
