@@ -21,6 +21,7 @@ Spisany 30 października 2026. Powstał tak: osiem niezależnych „perspektyw�
 
 - 30.10.2026: punkty 1–3 wdrożone (pasma zależne od stanu zmienności na 7/30/90 dni, „Spokojnie czy burzliwie?”, dotknięcia po maksimach i minimach dnia).
 - 30.10.2026: punkty 7–9 wdrożone (dźwignia Binance i hipotezy H15–H17, sędzia z Polymarket i Kalshi, historia opcji Deribit od 2018 dla H13). Wynik sędziego: rynek zakładów zgaduje dotknięcia lepiej niż nasz model (Brier 0,131 vs 0,160 w ostatnich 2 latach).
+- 31.10.2026: punkty 10–13 wdrożone. Wyścig HAR-RV/HARQ na pasmach 1/3/7 dni: nikt nie zdał (przewaga ≤ 0,4%, p > 0,18). Partia 6 (zmienność): H18 skok uwagi i H21 udział opłat potwierdzone (słabo, korelacja 0,11 i 0,15), H19 przepływy giełdowe działają odwrotnie, H20 ton newsów odrzucony. Tor kierunku nie zdał (przewaga w Brierze −0,07% przed, +0,33% po, p 0,55 i 0,36), więc zostaje 50%. Podatek: przewaga aktywnego portfela nad regularnym kupowaniem od 2018 to 1,13 po podatku i odsetkach (1,12 przed).
 - 30.10.2026: punkty 4–6 wdrożone (krok dzienny dla 1/3/7 dni, poprawka HLN, „nierozstrzygnięte”, najmniejszy wykrywalny efekt, monitor i reguła emerytury H7/H10, H14; blok odporności portfela; dziennik wszystkich metod).
 
 ## Plan w kolejności (zysk × szansa, że przejdzie protokół) / nakład

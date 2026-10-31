@@ -128,6 +128,99 @@ def simulate(X, T, P, start, end=None, log=True, state=None):
     return pd.DataFrame(rows)
 
 
+NBP_CSV = C.DATA_DIR / "nbp_rate.csv"
+TAX = 0.19
+
+
+def nbp_rate():
+    """Stopa referencyjna NBP (dziennie, % rocznie) z BIS (bez klucza); zapis w data/nbp_rate.csv."""
+    import io
+    import requests
+    try:
+        r = requests.get("https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.PL", params={"format": "csv", "startPeriod": "2013-01-01"}, timeout=60)
+        d = pd.read_csv(io.StringIO(r.text))[["TIME_PERIOD", "OBS_VALUE"]].dropna()
+        s = pd.Series(d["OBS_VALUE"].astype(float).to_numpy(), index=pd.to_datetime(d["TIME_PERIOD"]), name="rate")
+        s.to_csv(NBP_CSV)
+    except Exception:
+        pass
+    return pd.read_csv(NBP_CSV, index_col=0, parse_dates=True)["rate"] if NBP_CSV.exists() else None
+
+
+def taxed(X, start, target, rate):
+    """Portfel aktywny i regularne kupowanie z polskim podatkiem i odsetkami (wersja uproszczona, punkt 13 planu):
+    - 19% od rocznego dochodu z walut wirtualnych: przychód ze sprzedaży minus koszty zakupów (kasowo), nadwyżka kosztów
+      przechodzi na kolejne lata (art. 30b ust. 1a ustawy o PIT); podatek płatny 30 kwietnia następnego roku,
+    - gotówka na lokacie: stopa referencyjna NBP minus 1 pkt proc. (nie mniej niż 0), odsetki pomniejszone o 19% podatku Belki,
+    - na koniec oba portfele są sprzedawane i opodatkowane (regularne kupowanie płaci cały podatek dopiero wtedy)."""
+    D = X.loc[start:]
+    rt = (rate.reindex(D.index.union(rate.index)).sort_index().ffill().reindex(D.index).fillna(0) if rate is not None
+          else pd.Series(0.0, D.index))
+    cash = btc = dbtc = 0.0
+    dep = interest = taxes = carry = 0.0
+    rev, cost = {}, {}
+    last_month, first, paid_for = None, True, set()
+
+    def settle(y):
+        nonlocal carry, taxes
+        inc = rev.get(y, 0.0) - cost.get(y, 0.0) - carry
+        if inc > 0:
+            carry = 0.0
+            return TAX * inc
+        carry = -inc
+        return 0.0
+
+    for d, x in D.iterrows():
+        px = float(x["px"])
+        cash += cash * max(float(rt.loc[d]) - 1.0, 0.0) / 100 / 365 * (1 - TAX)
+        interest_today = 0.0
+        ym = d.strftime("%Y-%m")
+        if first or ym != last_month:
+            cash += DEPOSIT
+            dep += DEPOSIT
+            dbtc += DEPOSIT * (1 - FEE) / px
+            last_month, first = ym, False
+        y_prev = d.year - 1
+        if d >= pd.Timestamp(f"{d.year}-04-30") and y_prev not in paid_for and y_prev >= pd.Timestamp(start).year:
+            t = settle(y_prev)
+            paid_for.add(y_prev)
+            if t > 0:
+                if cash < t:                                   # brakuje gotówki: sprzedaż BTC na podatek
+                    q = min(btc, (t - cash) / (px * (1 - FEE)))
+                    btc -= q
+                    cash += q * px * (1 - FEE)
+                    rev[d.year] = rev.get(d.year, 0.0) + q * px * (1 - FEE)
+                cash -= t
+                taxes += t
+        value = cash + btc * px
+        w_now = btc * px / value if value > 0 else 0.0
+        tg = float(target.loc[d])
+        if abs(tg - w_now) > BAND:
+            amt = abs(tg - w_now) * value
+            if tg > w_now:
+                amt = min(amt, cash)
+                btc += amt * (1 - FEE) / px
+                cash -= amt
+                cost[d.year] = cost.get(d.year, 0.0) + amt
+            else:
+                btc -= amt / px
+                cash += amt * (1 - FEE)
+                rev[d.year] = rev.get(d.year, 0.0) + amt * (1 - FEE)
+    px = float(D["px"].iloc[-1])
+    pre = cash + btc * px
+    rev[D.index[-1].year] = rev.get(D.index[-1].year, 0.0) + btc * px * (1 - FEE)
+    cash += btc * px * (1 - FEE)
+    for y in sorted(set(rev) | set(cost)):                    # rozliczenie lat jeszcze niezapłaconych (likwidacja na koniec)
+        if y not in paid_for:
+            t = settle(y)
+            cash -= t
+            taxes += t
+    dca_pre = dbtc * px
+    dca_rev = dbtc * px * (1 - FEE)
+    dca_tax = TAX * max(dca_rev - dep, 0.0)                  # koszty = wszystkie wpłaty, przychód dopiero na koniec
+    return {"deposited": dep, "active_pre": pre, "active_after": cash, "active_tax": taxes,
+            "dca_pre": dca_pre, "dca_after": dca_rev - dca_tax, "dca_tax": dca_tax}
+
+
 def _twr(v, dep):
     """Zwrot ważony czasem (bez wpływu wpłat): dzienny zwrot = (wartość dziś − wpłata dziś) / wartość wczoraj."""
     g = np.ones(len(v))
@@ -246,6 +339,11 @@ def run(df, sig):
     bt["exam"] = {"start": str(EXAM_START.date()), "active": _stats(Ex), "dca": _stats(Ex, "dca_value"),
                   "trades": int((Ex["action"] != "TRZYMAJ").sum())}
     bt["robust"] = robustness(X, T, P, df)
+    try:                                                         # punkt 13: po podatku i z odsetkami od gotówki
+        rate = nbp_rate()
+        bt["tax"] = {"since2018": taxed(X, BACKTEST_START, X["target"], rate), "exam": taxed(X, EXAM_START, X["target"], rate)}
+    except Exception as e:
+        print("  [uwaga] podatek w portfelu:", str(e)[:120])
     # portfel na żywo: dziennik tylko dopisywany (przeszłych decyzji nigdy nie przeliczamy)
     old = pd.read_csv(LIVE_LOG) if LIVE_LOG.exists() else pd.DataFrame()
     if len(old):

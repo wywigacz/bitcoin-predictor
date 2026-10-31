@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm, rankdata, t as tdist
 
+import config as C
 import whales as WH
 
 ALPHA = 0.05
@@ -88,6 +89,23 @@ def features(idx, df=None):
         pass
     if "rr25" not in F and "w_rr25" in w:
         F["rr25"] = w["w_rr25"].reindex(idx)
+    try:                                                         # partia 6: regresory zmienności
+        if df is not None:
+            wk = [c for c in df.columns if c.startswith("wiki_")]
+            if wk:
+                tot = df[wk].sum(axis=1, min_count=6).rolling(7, min_periods=5).mean()
+                F["attn_jump"] = np.log(tot / tot.shift(7))
+            if {"fees", "minerrev"} <= set(df.columns):
+                F["feeshare7"] = (df["fees"] / df["minerrev"]).rolling(7, min_periods=5).mean()
+        import extra as XT
+        if XT.OUT.exists():
+            ex = pd.read_csv(XT.OUT, index_col=0, parse_dates=True)
+            if {"x_exin_btc", "x_exout_btc", "x_exsupply"} <= set(ex.columns):
+                F["exflow_int"] = ((ex["x_exin_btc"] - ex["x_exout_btc"]).abs().rolling(7, min_periods=5).sum() / ex["x_exsupply"]).reindex(idx)
+            if "x_gdelt_tone" in ex:
+                F["tone7"] = ex["x_gdelt_tone"].rolling(7, min_periods=4).mean().reindex(idx)
+    except Exception:
+        pass
     try:                                                         # partia 5: dźwignia z archiwum Binance
         import lev
         Lv = lev.load()
@@ -147,6 +165,20 @@ HYP += [
      "text": "Najwięksi traderzy mocno ustawieni na wzrost (stosunek długich do krótkich) → częstszy spadek o 10% w ciągu 30 dni"},
 ]
 
+# Partia 6 (spisana 2026-10-31, przed obejrzeniem wyników): regresory ZMIENNOŚCI, nie kierunku. Cel: czy przez kolejne 7 dni
+# wahania będą większe, niż przewiduje sama zmienność z przeszłości (log z ilorazu: zrealizowana wariancja 7 dni / prognoza).
+# Potwierdzony regresor byłby kandydatem do modelu zmienności (tam musiałby jeszcze poprawić QLIKE na odłożonych danych).
+HYP += [
+    {"id": "H18", "col": "attn_jump", "h": 7, "sign": +1, "batch": 6, "target": "volratio",
+     "text": "Nagły wzrost zainteresowania bitcoinem na Wikipedii (12 języków) → większe wahania w kolejnym tygodniu, niż przewiduje model"},
+    {"id": "H19", "col": "exflow_int", "h": 7, "sign": +1, "batch": 6, "target": "volratio",
+     "text": "Duże przepływy na giełdy i z giełd (względem zapasu na giełdach) → większe wahania w kolejnym tygodniu"},
+    {"id": "H20", "col": "tone7", "h": 7, "sign": -1, "batch": 6, "target": "volratio",
+     "text": "Bardziej negatywny ton newsów o bitcoinie (GDELT) → większe wahania w kolejnym tygodniu"},
+    {"id": "H21", "col": "feeshare7", "h": 7, "sign": +1, "batch": 6, "target": "volratio",
+     "text": "Duży udział opłat w przychodach górników (zatłoczona sieć) → większe wahania w kolejnym tygodniu"},
+]
+
 # Reguła emerytury (spisana 2026-10-30): potwierdzony sygnał przestaje być używany, gdy na dwóch kolejnych corocznych przeglądach
 # (29 października, od 2027) w oknie ostatnich 3 lat jednocześnie p (Newey-West, jednostronnie) > 0,10 i korelacja w przewidzianym kierunku < 0,03.
 RETIRE_FIRST = pd.Timestamp("2027-10-29")
@@ -187,7 +219,11 @@ def run(df):
         x = F[H["col"]] if H["col"] in F else pd.Series(np.nan, index=df.index)
         if H.get("from"):
             x = x.where(x.index >= pd.Timestamp(H["from"]))
-        if H.get("target") == "drop10":                         # zdarzenie: najniższa cena w ciągu h dni ≤ 90% dzisiejszego zamknięcia
+        if H.get("target") == "volratio":                       # zrealizowana wariancja h dni / prognoza z przeszłości (EWMA)
+            r2 = lr.diff() ** 2
+            ew = r2.ewm(alpha=C.EWMA_ALPHA, adjust=False, min_periods=30).mean()
+            y = np.log(r2[::-1].rolling(H["h"]).mean()[::-1].shift(-1) / ew)
+        elif H.get("target") == "drop10":                       # zdarzenie: najniższa cena w ciągu h dni ≤ 90% dzisiejszego zamknięcia
             low = np.log(df["low"] if "low" in df else df["close"])
             fmin = low[::-1].rolling(H["h"]).min()[::-1].shift(-1)
             y = (fmin - lr <= np.log(0.9)).astype(float).where(fmin.notna())
@@ -216,12 +252,16 @@ def run(df):
         ret = pd.Series(yv) * 100 if H.get("target") == "drop10" else (np.exp(pd.Series(yv)) - 1) * 100   # dla zdarzeń: częstość w %
         ok = p < ALPHA / k and stable
         r.update({"r": rho, "p": p, "r_a": ra, "r_b": rb, "stable": bool(stable), "n_eff": n_eff, "p_hac": _p_hac(xv, yv, H["h"], H["sign"]),
-                  "ret_lo": float(ret[q == 0].mean()), "ret_hi": float(ret[q == 2].mean()),
+                  # dla zmienności mediana: średnią z ilorazów wariancji psują pojedyncze wybuchy
+                  "ret_lo": float((ret[q == 0].median() if H.get("target") == "volratio" else ret[q == 0].mean())),
+                  "ret_hi": float((ret[q == 2].median() if H.get("target") == "volratio" else ret[q == 2].mean())),
                   "status": "confirmed" if ok else ("reverse" if H["sign"] * rho < 0 and (1 - p) < ALPHA / k else "rejected")})
         if r["status"] == "confirmed":
             r["health"] = health(x, y, H["h"], H["sign"], today)
             if r["health"]["retired"]:
                 r["status"] = "retired"
         rows.append(r)
-    conf = list(dict.fromkeys(r["col"] for r in rows if r["status"] == "confirmed"))
-    return {"rows": rows, "confirmed": conf, "features": F, "alpha_each": ALPHA / sum(1 for x in HYP if x["batch"] == 1)}
+    # do kierunku idą tylko sygnały zwrotu; potwierdzone regresory zmienności i zdarzeń trzymamy osobno
+    conf = list(dict.fromkeys(r["col"] for r in rows if r["status"] == "confirmed" and not r.get("target")))
+    vconf = list(dict.fromkeys(r["col"] for r in rows if r["status"] == "confirmed" and r.get("target") == "volratio"))
+    return {"rows": rows, "confirmed": conf, "vol_confirmed": vconf, "features": F, "alpha_each": ALPHA / sum(1 for x in HYP if x["batch"] == 1)}

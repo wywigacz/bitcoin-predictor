@@ -705,6 +705,96 @@ def scale_test(P, sig, sigH, H, dates):
             "n_pre": int(pre.sum()), "n_post": int(post.sum()), "terciles": terc_cov}
 
 
+# Wyścig zmienności z danych 5-minutowych (spisany 2026-10-31, przed wynikami). Kandydaci: HAR-RV (Corsi 2009) i HARQ
+# (Bollerslev, Patton i Quaedvlieg 2016: waga wczorajszej zmienności maleje, gdy jej pomiar jest niepewny, czyli przy dużej kwartyczności RQ).
+# Obaj prognozują wprost średnią wariancję z kolejnych H dni, dopasowani od nowa na początku każdego roku tylko na znanych już wynikach.
+# Sędzia: strata pinball końcowego pasma (7 kwantyli z przeszłych odchyleń, jak w scale_test), na tych samych dniach dla wszystkich.
+# Kandydat zastępuje obecną skalę na horyzoncie H, jeśli ma mniejszą stratę przed 2024-10-29 (DM, HAC, p < 0,10) i dodatnią przewagę po tej dacie.
+def rv_features(df):
+    try:
+        import rv as RVM
+        R = RVM.load()
+    except Exception:
+        return None
+    if R is None or "rq" not in R or R["rq"].notna().sum() < 1000:
+        return None
+    R = R.reindex(df.index)
+    d = R["rv"]
+    return {"d": d, "w": d.rolling(5, min_periods=4).mean(), "m": d.rolling(22, min_periods=18).mean(), "q": np.sqrt(R["rq"]) * d}
+
+
+def _rv_fit_pred(F, H, dates):
+    """Prognozy wariancji na H dni (średnia dzienna) z HAR-RV i HARQ, przeuczane co rok. Zwraca {nazwa: tablica}."""
+    tgt = F["d"][::-1].rolling(H, min_periods=H).mean()[::-1].shift(-1).to_numpy()
+    Xs = {"har_rv": np.column_stack([F["d"], F["w"], F["m"]]), "harq": np.column_stack([F["d"], F["w"], F["m"], F["q"]])}
+    N = len(dates)
+    first = dates[np.isfinite(Xs["harq"]).all(axis=1)][0] if np.isfinite(Xs["harq"]).all(axis=1).any() else None
+    out = {k: np.full(N, np.nan) for k in Xs}
+    if first is None:
+        return out
+    cuts = list(pd.date_range(first + pd.DateOffset(years=2), dates[-1], freq="YS")) + [dates[-1] + pd.Timedelta(days=1)]
+    pos = lambda d: int(np.searchsorted(dates, d))
+    for a, b in zip(cuts[:-1], cuts[1:]):
+        ia, ib = pos(a), pos(b)
+        for k, X in Xs.items():
+            A = np.column_stack([np.ones(N), X])
+            tr = np.isfinite(A).all(axis=1) & np.isfinite(tgt) & (np.arange(N) + H < ia)
+            if tr.sum() < 500:
+                continue
+            beta = np.linalg.lstsq(A[tr], tgt[tr], rcond=None)[0]
+            seg = np.arange(ia, ib)
+            seg = seg[np.isfinite(A[seg]).all(axis=1)]
+            p = A[seg] @ beta
+            out[k][seg] = np.maximum(p, np.nanmin(tgt[tr]))              # zabezpieczenie: prognoza wariancji nie może być ujemna
+    return out
+
+
+def rv_race(P, base, F, H, dates):
+    if F is None:
+        return {}
+    N = len(P)
+    y = np.full(N, np.nan)
+    y[: N - H] = np.log(P[H:] / P[: N - H])
+    cand = {k: np.sqrt(H * v) for k, v in _rv_fit_pred(F, H, dates).items()}
+    S = {"base": base, **cand}
+    Z = {k: y / s for k, s in S.items()}
+    allok = np.isfinite(y) & np.all([np.isfinite(s) for s in S.values()], axis=0)
+    rows = []
+    for t in range(0, N - H, _step(H)):
+        if not allok[t]:
+            continue
+        pool = np.arange(0, max(t - H + 1, 0))
+        pool = pool[allok[pool]]
+        if len(pool) < 365:
+            continue
+        wt = 0.5 ** ((t - pool) / HALF_LIFE)
+        yt = y[t] / base[t]
+        loss = []
+        for k in S:
+            q = _wq(Z[k][pool], wt, QS)
+            q = (q - q[3]) * S[k][t] / base[t]
+            loss.append(_pinball(np.array([yt]), q[None, :])[0])
+        rows.append((dates[t], *loss))
+    R = pd.DataFrame(rows, columns=["d", *S])
+    if len(R) < 200:
+        return {}
+    lag = int(np.ceil(H / _step(H))) + 1
+    pre, post = (R["d"] + pd.Timedelta(days=H) < HOLDOUT).to_numpy(), (R["d"] >= HOLDOUT).to_numpy()
+    res = {"from": str(R["d"].iloc[0].date()), "n_pre": int(pre.sum()), "n_post": int(post.sum()), "cand": {}}
+    best = None
+    for k in cand:
+        sk = lambda m: float(1 - R[k][m].mean() / R["base"][m].mean()) if m.sum() > 30 else float("nan")
+        _, p_pre = _dm(R["base"][pre].to_numpy(), R[k][pre].to_numpy(), lag)
+        _, p_post = _dm(R["base"][post].to_numpy(), R[k][post].to_numpy(), lag)
+        ok = bool(sk(pre) > 0 and np.isfinite(p_pre) and p_pre < 0.10 and sk(post) > 0)
+        res["cand"][k] = {"skill_pre": sk(pre), "p_pre": p_pre, "skill_post": sk(post), "p_post": p_post, "passed": ok}
+        if ok and (best is None or sk(post) > res["cand"][best]["skill_post"]):
+            best = k
+    res["used"] = best
+    res["scale"] = None if best is None else S[best]
+    return res
+
+
 def run(df, ev, f, sc, comp, reg=None, world_T=None, conf=None, horizons=None):
     N = len(df)
     P = df["close"].to_numpy(float)
@@ -720,10 +810,15 @@ def run(df, ev, f, sc, comp, reg=None, world_T=None, conf=None, horizons=None):
     res = {"vol": vinfo, "horizons": {}, "forecasts": []}
     ca = None if conf is None else conf.reindex(df.index).to_numpy(float)
     s_lr = pd.Series(sig).rolling(730, min_periods=365).median().to_numpy()
+    RVF = rv_features(df)
     for H in (horizons or C.HORIZONS):
         sigH = horizon_sigma(sig, H, vinfo["phi"], s_lr)
         st = scale_test(P, sig, sigH, H, df.index)
         scale_arr = sigH if st.get("used") else sig * np.sqrt(H)
+        race = rv_race(P, scale_arr, RVF, H, df.index) if H <= 7 else {}
+        if race.get("used"):                                   # wygrał wyścig: tam, gdzie są dane 5-min, skala z HAR/HARQ
+            scale_arr = np.where(np.isfinite(race["scale"]), race["scale"], scale_arr)
+        race.pop("scale", None)
         zt = np.full(N, np.nan)
         zt[: N - H] = np.log(P[H:] / P[: N - H]) / scale_arr[: N - H]
         out, T, y, info = walk_forward(Z, zt, H, N, "comp", knn_cols, Z["comp"].to_numpy(float), df.index, P, Wz, ca)
@@ -758,7 +853,7 @@ def run(df, ev, f, sc, comp, reg=None, world_T=None, conf=None, horizons=None):
         cdf0 = float(np.interp(0.0, q, QS, left=0.0, right=1.0)) if np.all(np.diff(q) > 0) else 0.5
         res["horizons"][H] = {"table": rows, "n": nok, "weights": dict(zip(MODELS, map(float, wts[-1]))), "alpha": float(alphas[-1]),
                               "calibration": float(cal[-1]), "live_z": {m: out[m][-1].tolist() for m in MODELS}, "ens_z": q.tolist(),
-                              "explain": info, "sigma_H": scale, "aci": aci_info, "scale_test": st, "audit": audit,
+                              "explain": info, "sigma_H": scale, "aci": aci_info, "scale_test": st, "rv_race": race, "audit": audit,
                               "holdout": {k: v for k, v in ho.items() if k != "q_live"}}
         view = np.nanmean([out["comp"][-1], out["ridge"][-1]], axis=0)       # pogląd modeli wskaźników (bez potwierdzonej przewagi)
         vcdf0 = float(np.interp(0.0, view, QS, left=0.0, right=1.0)) if np.all(np.diff(view) > 0) else 0.5

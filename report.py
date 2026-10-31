@@ -707,6 +707,26 @@ def short_html(ens):
             f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Prób</th><th>Najlepsza metoda</th><th>Przewaga</th><th>Istotna?</th><th>W paśmie 80%</th></tr>{rows}</table></div></div>')
 
 
+def dirtrack_html(DT):
+    """Osobny tor kierunku: szansa wzrostu w 7 dni z potwierdzonych sygnałów, oceniana tylko wynikiem Briera."""
+    if not DT or not DT.get("eval"):
+        return ""
+    pl = lambda v: f"{v * 100:+.2f}%"
+    pc = lambda v: f"{v * 100:.0f}%"
+    rows = "".join(f'<tr><td>{lab}</td><td>{e["n"]}</td><td>{pc(e["up_rate"])}</td><td>{pc(e["hit"])}</td>'
+                   f'<td class="{"pos" if e["skill"] > 0 and e["p"] < 0.10 else "muted"}">{pl(e["skill"])}</td><td>{e["p"]:.2f}</td></tr>'
+                   for k, lab in (("przed", "przed 29.10.2024"), ("po", "egzamin: od 29.10.2024")) if (e := DT["eval"].get(k)))
+    now = (f' Dzisiejszy odczyt tego toru: {pc(DT["p_now"])} szans na wzrost w 7 dni (stała częstość: {pc(DT["clim_now"])}).' if DT.get("p_now") is not None else "")
+    verdict = ("Tor przeszedł test, więc jego szansa zastępuje na panelu 50%." if DT["passed"] else
+               "Tor nie przeszedł testu: jego przewaga nad stałą częstością wzrostów jest za mała, by odróżnić ją od przypadku. Dlatego na panelu nadal podajemy 50/50.")
+    return (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Osobny tor kierunku: czy za tydzień będzie drożej?</h3>'
+            f'<p class="muted sm" style="margin:0 0 10px">Główny test ocenia cały przedział cen, a słaby sygnał kierunku przesuwa go tak mało, że testu nie może zdać. '
+            f'Tu sprawdzamy tylko jedno pytanie: wzrost czy spadek za 7 dni. Szansę liczy prosty model z potwierdzonych sygnałów (trend), uczony co tydzień tylko na przeszłości. '
+            f'Rywal to stała częstość wzrostów z historii. Reguła spisana 31.10.2026: tor zastępuje 50% tylko, jeśli jest od rywala lepszy z p &lt; 0,10 i przed odcięciem, i na egzaminie.</p>'
+            f'<div class="tw"><table class="tbl"><tr><th>Okres</th><th>Dni</th><th>Tygodnie wzrostowe</th><th>Trafiony kierunek</th><th>Przewaga (Brier)</th><th>p</th></tr>{rows}</table></div>'
+            f'<p class="note"><b>Wniosek:</b> {verdict}{now}</p></div>')
+
+
 def judge_html(JD):
     """Sędzia z rynków zakładów: nasze szanse dotknięcia kontra ceny na Polymarket (wstecz) i Kalshi (na żywo)."""
     if not JD:
@@ -793,7 +813,39 @@ def bands_html(ens):
             f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Nowe przeliczenie</th><th>Poprawa przed</th><th>Poprawa na egzaminie</th>'
             f'<th>Cena w paśmie 80%: spokojnie / przeciętnie / burzliwie</th></tr>{rows}</table></div>'
             f'<p class="muted sm" style="margin:6px 0 0">Ostatnia kolumna to rozliczenie końcowych pasm od ok. 2015 roku w trzech stanach rynku (tercyle zmienności z ostatnich 3 lat). '
-            f'Cel: około 80% w każdym. Wyraźnie mniej w spokojnych okresach znaczy, że wtedy pasma nadal bywają za wąskie: po długiej ciszy łatwo o niespodziankę.</p></div>')
+            f'Cel: około 80% w każdym. Wyraźnie mniej w spokojnych okresach znaczy, że wtedy pasma nadal bywają za wąskie: po długiej ciszy łatwo o niespodziankę.</p>'
+            + rv_race_html(ens) + '</div>')
+
+
+def rv_race_html(ens):
+    """Wyścig zmienności z danych 5-minutowych (HAR-RV, HARQ) oceniany na końcowych pasmach 1, 3 i 7 dni."""
+    allh = {**{int(k): v for k, v in (ens.get("short") or {}).items()}, **{int(k): v for k, v in ens["horizons"].items()}}
+    pl = lambda v: "–" if v is None or v != v else f"{v * 100:+.1f}%"
+    hn = lambda H: f'{H} {"dzień" if H == 1 else "dni"}'
+    rows, frm, used = "", None, []
+    for H in (1, 3, 7):
+        rc = (allh.get(H) or {}).get("rv_race") or {}
+        if not rc.get("cand"):
+            continue
+        frm = frm or rc.get("from")
+        if rc.get("used"):
+            used.append(hn(H))
+        for k, lab in (("har_rv", "HAR-RV"), ("harq", "HARQ")):
+            c = rc["cand"].get(k)
+            if c:
+                rows += (f'<tr><td><b>{hn(H)}</b></td><td>{lab}</td><td>{pl(c["skill_pre"])} <span class="muted sm">(p {c["p_pre"]:.2f})</span></td>'
+                         f'<td>{pl(c["skill_post"])}</td><td class="{"pos" if c["passed"] else "muted"}">{"tak" if c["passed"] else "nie"}</td></tr>')
+    if not rows:
+        return ""
+    verdict = (f"Zmienność z danych co 5 minut wygrała na horyzoncie: {', '.join(used)}, więc tam pasma liczymy z niej." if used else
+               "Żaden z kandydatów nie spełnił reguły, więc pasma liczymy po staremu.")
+    return (f'<h3 class="ct" style="margin-top:18px">Wyścig: zmienność z danych co 5 minut</h3>'
+            f'<p class="muted sm" style="margin:0 0 10px">Dwa modele uczą się z wahań notowanych co 5 minut na Binance: HAR-RV (dzienne, tygodniowe i miesięczne wahania) '
+            f'i HARQ, który mniej ufa wczorajszemu pomiarowi, gdy był on niepewny. Oba uczą się od nowa co rok, tylko na tym, co już było wiadomo. '
+            f'Sędzią jest trafność końcowego pasma cen (strata pinball), liczona na tych samych dniach co obecna metoda, od {frm}. '
+            f'Reguła spisana 31.10.2026: kandydat zastępuje obecną skalę, jeśli był lepszy przed 29.10.2024 (p &lt; 0,10) i nadal jest lepszy na egzaminie.</p>'
+            f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Model</th><th>Poprawa przed</th><th>Poprawa na egzaminie</th><th>Wchodzi?</th></tr>{rows}</table></div>'
+            f'<p class="note"><b>Wniosek:</b> {verdict}</p>')
 
 
 def ledger_html(ens):
@@ -1098,7 +1150,20 @@ def sim_html(SM):
             f'<div class="tw"><table class="tbl" style="margin-top:10px"><tr><th></th><th>Aktywny portfel</th><th>Regularne kupowanie</th></tr>{tbl}</table></div>'
             f'<p class="note"><b>Uczciwie:</b> ten wynik jest optymistyczny. Strategię trendu wybraliśmy, wiedząc z testu H7, że trend działał właśnie w tych latach, '
             f'a test na historii nie zna przyszłych zmian rynku. Prawdziwą miarą jest portfel na żywo powyżej: jego decyzje zapisujemy co dzień i nigdy ich nie poprawiamy wstecz. '
-            f'Podatek (19%, PIT-38) i ryzyko giełdy pominięte.</p></div>')
+            f'Ryzyko giełdy pominięte; podatek liczymy osobno poniżej.</p></div>')
+    tx = b.get("tax") or {}
+    if tx.get("since2018"):
+        trow = lambda lab, t: (f'<tr><td>{lab}</td><td>{zl(t["deposited"])}</td><td><b>{zl(t["active_after"])}</b> <span class="muted sm">(podatek {zl(t["active_tax"])})</span></td>'
+                               f'<td>{zl(t["dca_after"])} <span class="muted sm">(podatek {zl(t["dca_tax"])})</span></td>'
+                               f'<td>{t["active_after"] / t["dca_after"]:.2f}</td></tr>' if t["dca_after"] else "")
+        tr_ = trow(f'od {b["start"]}', tx["since2018"]) + (trow("egzamin: od 29.10.2024", tx["exam"]) if tx.get("exam") else "")
+        out += (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Po polskim podatku i z odsetkami od gotówki</h3>'
+                f'<p class="muted sm" style="margin:0 0 10px">Aktywny portfel sprzedaje, więc płaci podatek co roku, a regularne kupowanie dopiero przy sprzedaży. '
+                f'Liczymy to tak jak w Polsce: 19% od rocznego dochodu z kryptowalut (przychód ze sprzedaży minus wydatki na zakup; nadwyżka wydatków przechodzi na kolejne lata), '
+                f'podatek płacony 30 kwietnia następnego roku. Gotówka leży na lokacie oprocentowanej na stopę referencyjną NBP minus 1 punkt procentowy, '
+                f'z odsetek odliczamy 19% podatku Belki. Na koniec oba portfele sprzedajemy i płacimy zaległy podatek, żeby porównanie było uczciwe.</p>'
+                f'<div class="tw"><table class="tbl"><tr><th>Okres</th><th>Wpłacono</th><th>Aktywny portfel na rękę</th><th>Regularne kupowanie na rękę</th><th>Stosunek</th></tr>{tr_}</table></div>'
+                f'<p class="muted sm" style="margin:6px 0 0">Wersja uproszczona: bez kosztów przelewów i bez rozliczania strat z innymi dochodami. To ćwiczenie edukacyjne, nie porada podatkowa.</p></div>')
     rb = b.get("robust") or {}
     if rb.get("2y"):
         r2, r4 = rb["2y"], rb.get("4y") or {}
@@ -1300,6 +1365,9 @@ def whales_html(CF, df=None, ens=None):
                 if r.get("target") == "drop10":
                     det = (f'korelacja {r["r"]:+.2f}, p = {fp(r["p"])}{hac}. Spadek o 10% w ciągu 30 dni zdarzał się w {r["ret_lo"]:.0f}% przypadków '
                            f'przy najniższych wartościach i w {r["ret_hi"]:.0f}% przy najwyższych.').replace(".", ",").replace(", Spadek", ". Spadek") + mde
+                elif r.get("target") == "volratio":
+                    det = (f'korelacja {r["r"]:+.2f}, p = {fp(r["p"])}{hac}. W typowym tygodniu po najniższych wartościach wahania były {r["ret_lo"]:+.0f}% '
+                           f'względem prognozy z przeszłości, po najwyższych {r["ret_hi"]:+.0f}%').replace(".", ",").replace(", W typowym", ". W typowym") + "." + mde
                 else:
                     det = (f'korelacja {r["r"]:+.2f}, p = {fp(r["p"])}{hac}. Średni zwrot BTC przez {okres} po najniższych wartościach: {r["ret_lo"]:+.1f}%, '
                            f'po najwyższych: {r["ret_hi"]:+.1f}%.').replace(".", ",").replace(", Średni", ". Średni").rstrip(",") + mde
@@ -1311,10 +1379,14 @@ def whales_html(CF, df=None, ens=None):
             rows += f'<tr><td><b>{r["id"]}</b></td><td>{html.escape(r["text"])}</td><td class="{cls}"><b>{st}</b></td><td class="sm muted">{det}</td></tr>'
         nc = len(CF["confirmed"])
         ids = [r["id"] for r in CF["rows"] if r["status"] == "confirmed"]
+        vids = [r["id"] for r in CF["rows"] if r["status"] == "confirmed" and r.get("target") == "volratio"]
         big = any(r["status"] == "confirmed" and r.get("batch") == 1 for r in CF["rows"])
-        verdict = ((f"Test przeszły: {', '.join(ids)}. " if nc else "Żadna hipoteza nie przeszła testu. ")
+        verdict = ((f"Test przeszły: {', '.join(ids)}. " if ids else "Żadna hipoteza nie przeszła testu. ")
                    + ("" if big else "Żadna hipoteza o dużych graczach nie przeszła, co jest zgodne z badaniami: kupujący w ETF podążają za ceną, a nie ją wyprzedzają. ")
-                   + ("Potwierdzone sygnały trafiają do zespołu metod jako osobna metoda, z tą samą bramką co reszta: wpływają na prognozę tylko, jeśli w teście „jak na żywo” istotnie ją poprawiają." if nc else ""))
+                   + ("Potwierdzone sygnały trafiają do zespołu metod jako osobna metoda, z tą samą bramką co reszta: wpływają na prognozę tylko, jeśli w teście „jak na żywo” istotnie ją poprawiają. " if nc else "")
+                   + (f"{', '.join(vids)} mówią o sile wahań, nie o kierunku: zapowiadają tydzień burzliwszy, niż wynika z samej przeszłości. Korelacja jest jednak słaba "
+                      "i do modelu zmienności trafiłyby dopiero, gdyby poprawiły jego prognozę na odłożonych danych. Minusy przy tych hipotezach są normalne: "
+                      "typowy tydzień jest spokojniejszy od średniej, którą zawyżają rzadkie wybuchy; liczy się różnica między niskimi a wysokimi wartościami." if vids else ""))
         thr = f'{CF["alpha_each"]:.3f}'.replace(".", ",")
         decay = ""
         if any(r["id"] == "H7" and r["status"] == "confirmed" for r in CF["rows"]) and df is not None:
@@ -1340,11 +1412,12 @@ def whales_html(CF, df=None, ens=None):
                 decay += 'Model używa go jako jednej z metod i tylko wtedy, gdy w teście „jak na żywo” poprawia prognozę.</p>'
         batches = sorted({r.get("batch", 1) for r in CF["rows"]})
         thrs = ", ".join(f'{min(r["alpha"] for r in CF["rows"] if r.get("batch", 1) == b):.4f}'.replace(".", ",") + f" w partii {b}" for b in batches)
-        tbl = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Testy potwierdzające: duzi gracze, trend, opcje i stablecoiny</h3>'
+        tbl = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Testy potwierdzające: duzi gracze, trend, opcje, stablecoiny i siła wahań</h3>'
                f'<p class="muted sm" style="margin:0 0 10px">Hipotezy spisaliśmy 29 października 2026, zanim zobaczyliśmy wyniki, i nie zmieniamy ich po fakcie. '
                f'Partia 1 (H1–H6) dotyczy dużych graczy, partia 2 (H7–H10) efektów najlepiej opisanych w badaniach nad Bitcoinem, '
                f'partia 3 (H11–H13) pomysłów z przeglądu badań: stablecoinów i rynku opcji (asymetria opcji H13 jest odtworzona z archiwum transakcji Deribit od 2018 roku), '
-               f'partia 4 (H14) to kontynuacja trendu na nowych danych, a partia 5 (H15–H17) sprawdza, czy duża dźwignia na giełdzie Binance zapowiada krach (spadek o 10% w 30 dni), a nie kierunek. '
+               f'partia 4 (H14) to kontynuacja trendu na nowych danych, partia 5 (H15–H17) sprawdza, czy duża dźwignia na giełdzie Binance zapowiada krach (spadek o 10% w 30 dni), a nie kierunek, '
+               f'a partia 6 (H18–H21, spisana 31.10.2026) dotyczy siły wahań: czy w kolejnym tygodniu będą większe, niż przewiduje sama zmienność z przeszłości. '
                f'Każda hipoteza ma z góry wpisany kierunek. Żeby uznać ją za prawdziwą, wynik musi być bardzo mało prawdopodobny jako przypadek '
                f'(p poniżej {thrs}) i powtórzyć się w obu połowach historii. Dane z dnia D wchodzą do testu dopiero od dnia D+1. '
                f'Dla porównania podajemy też p z poprawką Neweya-Westa na nakładające się zwroty: zwykle wychodzi niższe, czyli nasza metoda jest ostrożniejsza. '
@@ -1420,7 +1493,7 @@ def markets_html(M, df):
             f'<h3 class="ct" style="margin-top:18px">Obligacje</h3><p class="muted sm" style="margin:0 0 8px">Ujemne: gdy obligacje drożeją (ucieczka do bezpieczeństwa), Bitcoin zwykle tanieje.</p>{bnd}</div></div>{an}')
 
 
-def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None, TCH=None, SIM=None, VE=None, JD=None):
+def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None, TCH=None, SIM=None, VE=None, JD=None, DT=None):
     fr = res["frame"]
     reg_tiles, reg_verdict = regularity_html(Rg)
     scan_head, scan_body = scan_html(S)
@@ -1492,7 +1565,7 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=No
             .replace("%%TOUCH%%", touch_html(TCH) + judge_html(JD) + volev_html(VE))
             .replace("%%BANDS%%", bands_html(ens))
             .replace("%%SIMPORT%%", sim_html(SIM))
-            .replace("%%SHORTH%%", short_html(ens) + exam_html(ens, TCH, SIM))
+            .replace("%%SHORTH%%", short_html(ens) + dirtrack_html(DT) + exam_html(ens, TCH, SIM))
             .replace("%%NSERIES%%", n(S["summary"]["n_series"], 0) if S else "kilkaset")
             .replace("%%REGULARITY%%", reg_tiles)
             .replace("%%REGVERDICT%%", reg_verdict)

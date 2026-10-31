@@ -26,6 +26,8 @@ KIND = {
     "x_ln_cap": ("Sieć Lightning: pojemność kanałów", "chg"), "x_ln_nodes": ("Sieć Lightning: liczba węzłów", "attn"),
     "x_txcnt": ("Sieć BTC: liczba transakcji (CoinMetrics)", "attn"), "x_iss": ("Sieć BTC: wartość nowo wykopanych monet", "attn"),
     "x_exsupply": ("Sieć BTC: bitcoiny leżące na giełdach", "chg"), "x_exflow": ("Sieć BTC: napływ BTC na giełdy (USD)", "attn"),
+    "x_exin_btc": ("Sieć BTC: napływ BTC na giełdy (BTC)", "attn"), "x_exout_btc": ("Sieć BTC: odpływ BTC z giełd (BTC)", "attn"),
+    "x_gdelt_tone": ("Ton newsów o bitcoinie (GDELT)", "lvl"),
     "x_kp": ("Kosmos: burze geomagnetyczne (indeks Kp)", "lvl"), "x_ap": ("Kosmos: aktywność geomagnetyczna (Ap)", "lvl"),
     "x_f107": ("Kosmos: strumień radiowy Słońca (F10.7)", "lvl"),
 }
@@ -125,7 +127,8 @@ def lightning():
 
 def coinmetrics():
     out = {}
-    for name, m in (("x_txcnt", "TxCnt"), ("x_iss", "IssTotUSD"), ("x_exsupply", "SplyExNtv"), ("x_exflow", "FlowInExUSD")):
+    for name, m in (("x_txcnt", "TxCnt"), ("x_iss", "IssTotUSD"), ("x_exsupply", "SplyExNtv"), ("x_exflow", "FlowInExUSD"),
+                    ("x_exin_btc", "FlowInExNtv"), ("x_exout_btc", "FlowOutExNtv")):
         url = f"https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets=btc&metrics={m}&frequency=1d&start_time=2011-01-01&page_size=10000"
         d = {}
         while url:
@@ -202,9 +205,29 @@ def hackernews():
     return out
 
 
+GDELT_CACHE = C.DATA_DIR / "gdelt_tone.csv"
+
+
+def gdelt_tone():
+    """Dzienny średni ton artykułów anglojęzycznych o bitcoinie (GDELT DOC 2.0, od 2017, bez klucza). Dociągamy tylko ostatnie 3 miesiące."""
+    old = pd.read_csv(GDELT_CACHE, index_col=0, parse_dates=True)["tone"] if GDELT_CACHE.exists() else pd.Series(dtype=float)
+    start = (old.index.max() - pd.Timedelta(days=90)) if len(old) else pd.Timestamp("2017-01-01")
+    end = pd.Timestamp.now(tz="UTC").tz_localize(None).normalize()
+    time.sleep(6)                                                # GDELT: najwyżej jedno zapytanie na 5 s
+    r = _get("https://api.gdeltproject.org/api/v2/doc/doc", timeout=120, params={
+        "query": "bitcoin sourcelang:english", "mode": "timelinetone", "format": "json",
+        "startdatetime": start.strftime("%Y%m%d000000"), "enddatetime": end.strftime("%Y%m%d000000")})
+    pts = r.json()["timeline"][0]["data"]
+    s = pd.Series({pd.Timestamp(p["date"][:8]): float(p["value"]) for p in pts})
+    s = s[s != 0] if len(s) else s                               # 0 = brak artykułów w danym dniu (np. dzień bieżący)
+    s = s.combine_first(old).sort_index() if len(old) else s.sort_index()
+    s.rename("tone").to_csv(GDELT_CACHE)
+    return {"x_gdelt_tone": s}
+
+
 JOBS = [("NY Fed (płynność, stopy)", nyfed), ("Skarb USA (TGA)", tga), ("DefiLlama (DeFi, DEX, USDT, USDC)", llama), ("mempool.space (Lightning)", lightning),
         ("CoinMetrics (giełdy, transakcje)", coinmetrics), ("CFTC (pozycje na innych rynkach)", cftc), ("GFZ (pogoda kosmiczna)", space),
-        ("Hacker News (uwaga techów)", hackernews)]
+        ("Hacker News (uwaga techów)", hackernews), ("GDELT (ton newsów o bitcoinie)", gdelt_tone)]
 
 
 def update(verbose=True):

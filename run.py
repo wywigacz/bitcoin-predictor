@@ -16,6 +16,7 @@ import pandas as pd
 
 import config as C
 import confirm
+import dirtrack
 import ensemble
 import events
 import extra as xt
@@ -139,6 +140,13 @@ def update(full=False):
         print("  " + ", ".join(f'{r["id"]}: {r["status"]}' for r in CF["rows"]))
     except Exception as e:
         print("  [uwaga] test potwierdzający:", str(e)[:120])
+    DT = None
+    try:                                                         # osobny tor kierunku (szansa wzrostu w 7 dni, wynik Briera)
+        DT = dirtrack.run(df, CF)
+        if DT:
+            print(f'  tor kierunku: {"zdał" if DT["passed"] else "nie zdał"}, dziś {DT["p_now"] * 100:.0f}% szans na wzrost w 7 dni')
+    except Exception as e:
+        print("  [uwaga] tor kierunku:", str(e)[:120])
     conf = None
     if CF and CF["confirmed"]:                                   # tylko potwierdzone sygnały trafiają do osobnej metody w zespole
         conf = pd.concat([confirm._z(CF["features"][c]) for c in CF["confirmed"]], axis=1).mean(axis=1)
@@ -205,8 +213,9 @@ def update(full=False):
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
     slim["volev"] = VE
     slim["judge"] = JD
+    slim["dirtrack"] = DT
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
-    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF, TCH, SIM, VE, JD)
+    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF, TCH, SIM, VE, JD, DT)
     print_summary(res)
     return res
 

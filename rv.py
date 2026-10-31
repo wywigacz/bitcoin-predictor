@@ -41,6 +41,7 @@ def _daily(px):
         "rs_neg": g.apply(lambda x: float((x[x < 0] ** 2).sum())),
         "rs_pos": g.apply(lambda x: float((x[x > 0] ** 2).sum())),
         "bv": g.apply(lambda x: float(np.pi / 2 * (x.abs() * x.abs().shift(1)).sum())),
+        "rq": g.apply(lambda x: float(len(x) / 3 * (x ** 4).sum())),    # kwartyczność zrealizowana (do HARQ)
         "bars": g.size(),
     })
     out["jump"] = (out["rv"] - out["bv"]).clip(lower=0)
@@ -49,7 +50,7 @@ def _daily(px):
 
 def update(verbose=True):
     old = pd.read_csv(OUT, index_col=0, parse_dates=True) if OUT.exists() else pd.DataFrame()
-    have = set(old.index.normalize()) if len(old) else set()
+    have = set(old.index[old["rq"].notna()].normalize()) if len(old) and "rq" in old else set()
     today = pd.Timestamp.now(tz="UTC").tz_localize(None).normalize()
     parts, t0 = [], time.time()
     this_month = today.replace(day=1)
