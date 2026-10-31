@@ -1156,6 +1156,7 @@ def write_journal(TR):
     """Osobna strona docs/dziennik.html: wszystkie decyzje tradera, czytelnie, od najnowszej."""
     if not TR or not TR.get("log"):
         return
+    zl = lambda v: f"{v:,.0f} zł".replace(",", " ")
     head = (C.ROOT / "template_head.html").read_text(encoding="utf-8")
     a, b = head.find(":root{"), head.find("*{box-sizing")
     tokens = head[a:b] if a >= 0 and b > a else ""
@@ -1169,8 +1170,8 @@ def write_journal(TR):
             'a{color:var(--accent)}.muted{color:var(--muted)}.sm{font-size:12.5px}.pos{color:var(--green)}.neg{color:var(--red)}'
             f'{TRADER_CSS}</style></head><body><main>'
             '<p class="sm"><a href="index.html">← Barometr Bitcoina</a></p><h1>Dziennik wirtualnego tradera</h1>'
-            f'<p class="muted">Decyzja co ok. 6 godzin od 31.10.2026. Portfel {TR["value"]:,.0f} zł przy wpłatach {TR["deposited"]:,.0f} zł; '.replace(",", " ")
-            + f'regularne kupowanie miałoby {TR["dca_value"]:,.0f} zł. Eksperyment na wirtualnych pieniądzach, nie porada inwestycyjna.</p>'.replace(",", " ")
+            f'<p class="muted">Decyzja co ok. 6 godzin od 31.10.2026. Portfel {zl(TR["value"])} przy wpłatach {zl(TR["deposited"])}; '
+            f'regularne kupowanie miałoby {zl(TR["dca_value"])}. Eksperyment na wirtualnych pieniądzach, nie porada inwestycyjna.</p>'
             + f'<p>{_tj_score(TR)}</p>{cards}</main></body></html>')
     (C.DASHBOARD_HTML.parent / "dziennik.html").write_text(page, encoding="utf-8")
 
