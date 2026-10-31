@@ -79,8 +79,27 @@ def features(idx, df=None):
         F["hl_fund7"] = w["w_hl_fund"].rolling(7, min_periods=5).mean().reindex(idx)
     if "w_usdt_px" in w:
         F["peg7"] = ((w["w_usdt_px"] - 1) * 100).rolling(7, min_periods=5).mean().reindex(idx)
-    if "w_rr25" in w:
+    try:                                                         # H13: asymetria opcji odtworzona z transakcji Deribit (od 2018, spójna w czasie)
+        import opthist
+        O = opthist.load()
+        if O is not None and O["rr25"].notna().sum() > 300:
+            F["rr25"] = O["rr25"].reindex(idx)
+    except Exception:
+        pass
+    if "rr25" not in F and "w_rr25" in w:
         F["rr25"] = w["w_rr25"].reindex(idx)
+    try:                                                         # partia 5: dźwignia z archiwum Binance
+        import lev
+        Lv = lev.load()
+        if Lv is not None and df is not None:
+            if "oi_btc" in Lv and "supply" in df:
+                F["oi_sup"] = (Lv["oi_btc"].reindex(idx) / df["supply"].ffill()) * 100
+            if "premium" in Lv:
+                F["basis7"] = Lv["premium"].reindex(idx).rolling(7, min_periods=5).mean()
+            if "top_ls_pos" in Lv:
+                F["topls7"] = Lv["top_ls_pos"].reindex(idx).rolling(7, min_periods=5).mean()
+    except Exception:
+        pass
     parts = [_z(F[c]) for c in ("mom28", "attn", "etf3") if c in F]
     if parts:
         F["combo"] = pd.concat(parts, axis=1).mean(axis=1, skipna=True)
@@ -115,6 +134,17 @@ def _p_hac(x, y, h, sign):
 HYP += [
     {"id": "H14", "col": "mom28", "h": 7, "sign": +1, "batch": 4, "from": "2026-10-30", "min_n": 250 * 7,
      "text": "Kontynuacja H7 na nowych danych (od 30.10.2026): wzrost w 4 tygodnie → wyższy zwrot w kolejnym tygodniu"},
+]
+
+# Partia 5 (spisana 2026-10-30, przed obejrzeniem danych): dźwignia z archiwum Binance (od 2020) jako ryzyko krachu, nie kierunek.
+# Cel: czy w ciągu 30 dni cena spadnie choć raz (najniższa cena dnia) o 10% lub więcej (zgodnie z „Crypto carry”, BIS 2023).
+HYP += [
+    {"id": "H15", "col": "oi_sup", "h": 30, "sign": +1, "batch": 5, "target": "drop10",
+     "text": "Dużo otwartych pozycji na kontraktach (względem podaży BTC) → częstszy spadek o 10% w ciągu 30 dni"},
+    {"id": "H16", "col": "basis7", "h": 30, "sign": +1, "batch": 5, "target": "drop10",
+     "text": "Wysoka premia kontraktów wieczystych nad ceną (tłok chętnych na dźwignię) → częstszy spadek o 10% w ciągu 30 dni"},
+    {"id": "H17", "col": "topls7", "h": 30, "sign": +1, "batch": 5, "target": "drop10",
+     "text": "Najwięksi traderzy mocno ustawieni na wzrost (stosunek długich do krótkich) → częstszy spadek o 10% w ciągu 30 dni"},
 ]
 
 # Reguła emerytury (spisana 2026-10-30): potwierdzony sygnał przestaje być używany, gdy na dwóch kolejnych corocznych przeglądach
@@ -157,7 +187,12 @@ def run(df):
         x = F[H["col"]] if H["col"] in F else pd.Series(np.nan, index=df.index)
         if H.get("from"):
             x = x.where(x.index >= pd.Timestamp(H["from"]))
-        y = lr.shift(-H["h"]) - lr
+        if H.get("target") == "drop10":                         # zdarzenie: najniższa cena w ciągu h dni ≤ 90% dzisiejszego zamknięcia
+            low = np.log(df["low"] if "low" in df else df["close"])
+            fmin = low[::-1].rolling(H["h"]).min()[::-1].shift(-1)
+            y = (fmin - lr <= np.log(0.9)).astype(float).where(fmin.notna())
+        else:
+            y = lr.shift(-H["h"]) - lr
         m = x.notna() & y.notna()
         n = int(m.sum())
         n_eff0 = max(n / H["h"], 5)
@@ -178,7 +213,7 @@ def run(df):
         ra, rb = _spear(xv[:half], yv[:half]), _spear(xv[half:], yv[half:])
         stable = H["sign"] * ra > 0 and H["sign"] * rb > 0
         q = pd.qcut(pd.Series(xv).rank(method="first"), 3, labels=False)
-        ret = (np.exp(pd.Series(yv)) - 1) * 100
+        ret = pd.Series(yv) * 100 if H.get("target") == "drop10" else (np.exp(pd.Series(yv)) - 1) * 100   # dla zdarzeń: częstość w %
         ok = p < ALPHA / k and stable
         r.update({"r": rho, "p": p, "r_a": ra, "r_b": rb, "stable": bool(stable), "n_eff": n_eff, "p_hac": _p_hac(xv, yv, H["h"], H["sign"]),
                   "ret_lo": float(ret[q == 0].mean()), "ret_hi": float(ret[q == 2].mean()),

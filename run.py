@@ -19,6 +19,9 @@ import confirm
 import ensemble
 import events
 import extra as xt
+import judge
+import lev
+import opthist
 import model
 import markets
 import news
@@ -85,6 +88,12 @@ def update(full=False):
         rv.update()
     except Exception as e:
         print("  [uwaga] dane 5-minutowe:", str(e)[:120])
+    print("Historia opcji Deribit i dźwignia Binance ...")
+    for nm, fn in (("historia opcji", lambda: opthist.update(max_days=30)), ("dźwignia", lev.update)):
+        try:
+            fn()
+        except Exception as e:
+            print(f"  [uwaga] {nm}:", str(e)[:120])
     print("Duzi gracze: fundusze ETF, Strategy, traderzy Hyperliquid ...")
     try:
         whales.update()
@@ -145,6 +154,12 @@ def update(full=False):
         TCH = touch.run(df, sig_now)
     except Exception as e:
         print("  [uwaga] szanse dotknięcia:", str(e)[:120])
+    print("Sędzia: rynki zakładów (Polymarket, Kalshi) ...")
+    JD = None
+    try:
+        JD = judge.run(df, sig_now, (TCH or {}).get("best", "drift"), df.index[-1])
+    except Exception as e:
+        print("  [uwaga] sędzia:", str(e)[:120])
     print("Spokojnie czy burzliwie (zdarzenia zmienności) ...")
     VE = None
     try:
@@ -189,8 +204,9 @@ def update(full=False):
     slim["touch"] = {k: v for k, v in TCH.items()} if TCH else None
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
     slim["volev"] = VE
+    slim["judge"] = JD
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
-    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF, TCH, SIM, VE)
+    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF, TCH, SIM, VE, JD)
     print_summary(res)
     return res
 

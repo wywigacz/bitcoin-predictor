@@ -707,6 +707,38 @@ def short_html(ens):
             f'<div class="tw"><table class="tbl"><tr><th>Horyzont</th><th>Prób</th><th>Najlepsza metoda</th><th>Przewaga</th><th>Istotna?</th><th>W paśmie 80%</th></tr>{rows}</table></div></div>')
 
 
+def judge_html(JD):
+    """Sędzia z rynków zakładów: nasze szanse dotknięcia kontra ceny na Polymarket (wstecz) i Kalshi (na żywo)."""
+    if not JD:
+        return ""
+    pc = lambda v: "–" if v is None or v != v else f"{v * 100:.0f}%"
+    f3 = lambda v: "–" if v is None or v != v else f"{v:.3f}"
+    out = ('<div class="panel" style="margin-top:18px"><h3 class="ct">Kto lepiej zgaduje dotknięcia: my czy rynek zakładów?</h3>'
+           '<p class="muted sm" style="margin:0 0 10px">Na giełdach przewidywań (Polymarket, Kalshi) ludzie stawiają prawdziwe pieniądze na to, czy bitcoin dotknie danej ceny do końca miesiąca. '
+           'Cena takiego zakładu to szansa w oczach rynku. Porównujemy ją z naszą, policzoną z danych z tego samego dnia, i z tym, co się stało '
+           '(wynik Briera: im niżej, tym lepiej; zgadywanie 50/50 daje 0,25).</p>')
+    P = (JD.get("poly") or {}).get("eval") or {}
+    if P:
+        rows = "".join(f'<tr><td>{lab}</td><td>{e["n"]} ({e["months"]} mies.)</td><td>{f3(e["brier_model"])}</td><td>{f3(e["brier_market"])}</td><td>{f3(e["brier_blend"])}</td></tr>'
+                       for k, lab in (("przed", "przed 29.10.2024"), ("po", "egzamin: od 29.10.2024"), ("calosc", "razem")) if (e := P.get(k)))
+        c = P.get("calosc") or {}
+        better = c and c["brier_market"] < c["brier_model"]
+        out += (f'<div class="tw"><table class="tbl"><tr><th>Polymarket, rozstrzygnięte rynki</th><th>Rynków</th><th>Nasz model</th><th>Rynek</th><th>Pół na pół</th></tr>{rows}</table></div>'
+                + (f'<p class="note"><b>Wniosek:</b> rynek zakładów zgaduje dotknięcia lepiej niż nasz model, szczególnie w ostatnich 2 latach. '
+                   f'Jeśli chcesz wiedzieć, czy cena dotknie konkretnego poziomu do końca miesiąca, cena na Polymarket jest lepszym drogowskazem niż nasza tabela; '
+                   f'naszą traktuj jako punkt odniesienia. Rynki z jednego miesiąca dzielą tę samą ścieżkę ceny, więc niezależnych porównań jest tyle, ile miesięcy.</p>'
+                   if better else '<p class="note"><b>Wniosek:</b> nasz model radzi sobie nie gorzej niż rynek zakładów; przy tak małej liczbie miesięcy to jeszcze nie dowód.</p>'))
+    K = JD.get("kalshi") or {}
+    if K.get("now"):
+        kr = "".join(f'<tr><td>{"powyżej" if r["up"] else "poniżej"} {r["strike"] / 1000:.1f} tys. USD</td><td>do {r["close"]}</td><td>{pc(r["p_market"])}</td><td>{pc(r["p_model"])}</td></tr>'
+                     for r in K["now"])
+        out += (f'<h3 class="ct" style="margin-top:18px">Teraz: Kalshi kontra nasz model</h3>'
+                f'<p class="muted sm" style="margin:0 0 10px">Odczyt z {K.get("now_asof", "")}: ceny z chwili zapisu, nasza szansa z zamknięcia tego dnia. Zapisujemy je co 6 godzin i rozliczamy po zamknięciu rynków '
+                f'(zapisanych: {K["rows"]}, rozliczonych: {K["resolved"]}).</p>'
+                f'<div class="tw"><table class="tbl"><tr><th>Czy cena będzie choć raz</th><th>Termin</th><th>Rynek Kalshi</th><th>Nasz model</th></tr>{kr}</table></div>')
+    return out + '</div>'
+
+
 def volev_html(VE):
     """Spokojnie czy burzliwie: szanse zdarzeń zmienności i ich rozliczenie."""
     if not VE:
@@ -1265,8 +1297,12 @@ def whales_html(CF, df=None, ens=None):
                 okres = {1: "następny dzień", 7: "tydzień"}.get(r["h"], "miesiąc")
                 fp = lambda p: f"{p:.4f}" if p < 0.01 else f"{p:.2f}"
                 hac = f', z poprawką Neweya-Westa {fp(r["p_hac"])}' if r.get("p_hac") is not None else ""
-                det = (f'korelacja {r["r"]:+.2f}, p = {fp(r["p"])}{hac}. Średni zwrot BTC przez {okres} po najniższych wartościach: {r["ret_lo"]:+.1f}%, '
-                       f'po najwyższych: {r["ret_hi"]:+.1f}%.').replace(".", ",").replace(", Średni", ". Średni").rstrip(",") + mde
+                if r.get("target") == "drop10":
+                    det = (f'korelacja {r["r"]:+.2f}, p = {fp(r["p"])}{hac}. Spadek o 10% w ciągu 30 dni zdarzał się w {r["ret_lo"]:.0f}% przypadków '
+                           f'przy najniższych wartościach i w {r["ret_hi"]:.0f}% przy najwyższych.').replace(".", ",").replace(", Spadek", ". Spadek") + mde
+                else:
+                    det = (f'korelacja {r["r"]:+.2f}, p = {fp(r["p"])}{hac}. Średni zwrot BTC przez {okres} po najniższych wartościach: {r["ret_lo"]:+.1f}%, '
+                           f'po najwyższych: {r["ret_hi"]:+.1f}%.').replace(".", ",").replace(", Średni", ". Średni").rstrip(",") + mde
                 hl_ = r.get("health") or {}
                 if hl_.get("now"):
                     nw = hl_["now"]
@@ -1307,7 +1343,8 @@ def whales_html(CF, df=None, ens=None):
         tbl = (f'<div class="panel" style="margin-top:18px"><h3 class="ct">Testy potwierdzające: duzi gracze, trend, opcje i stablecoiny</h3>'
                f'<p class="muted sm" style="margin:0 0 10px">Hipotezy spisaliśmy 29 października 2026, zanim zobaczyliśmy wyniki, i nie zmieniamy ich po fakcie. '
                f'Partia 1 (H1–H6) dotyczy dużych graczy, partia 2 (H7–H10) efektów najlepiej opisanych w badaniach nad Bitcoinem, '
-               f'partia 3 (H11–H13) pomysłów z przeglądu badań: stablecoinów i rynku opcji. '
+               f'partia 3 (H11–H13) pomysłów z przeglądu badań: stablecoinów i rynku opcji (asymetria opcji H13 jest odtworzona z archiwum transakcji Deribit od 2018 roku), '
+               f'partia 4 (H14) to kontynuacja trendu na nowych danych, a partia 5 (H15–H17) sprawdza, czy duża dźwignia na giełdzie Binance zapowiada krach (spadek o 10% w 30 dni), a nie kierunek. '
                f'Każda hipoteza ma z góry wpisany kierunek. Żeby uznać ją za prawdziwą, wynik musi być bardzo mało prawdopodobny jako przypadek '
                f'(p poniżej {thrs}) i powtórzyć się w obu połowach historii. Dane z dnia D wchodzą do testu dopiero od dnia D+1. '
                f'Dla porównania podajemy też p z poprawką Neweya-Westa na nakładające się zwroty: zwykle wychodzi niższe, czyli nasza metoda jest ostrożniejsza. '
@@ -1383,7 +1420,7 @@ def markets_html(M, df):
             f'<h3 class="ct" style="margin-top:18px">Obligacje</h3><p class="muted sm" style="margin:0 0 8px">Ujemne: gdy obligacje drożeją (ucieczka do bezpieczeństwa), Bitcoin zwykle tanieje.</p>{bnd}</div></div>{an}')
 
 
-def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None, TCH=None, SIM=None, VE=None):
+def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None, TCH=None, SIM=None, VE=None, JD=None):
     fr = res["frame"]
     reg_tiles, reg_verdict = regularity_html(Rg)
     scan_head, scan_body = scan_html(S)
@@ -1452,7 +1489,7 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=No
             .replace("%%MARKETS%%", markets_html(MKT, df))
             .replace("%%EXTRA%%", extra_html())
             .replace("%%WHALES%%", whales_html(CF, df, ens))
-            .replace("%%TOUCH%%", touch_html(TCH) + volev_html(VE))
+            .replace("%%TOUCH%%", touch_html(TCH) + judge_html(JD) + volev_html(VE))
             .replace("%%BANDS%%", bands_html(ens))
             .replace("%%SIMPORT%%", sim_html(SIM))
             .replace("%%SHORTH%%", short_html(ens) + exam_html(ens, TCH, SIM))
