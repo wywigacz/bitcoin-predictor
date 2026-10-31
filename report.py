@@ -1090,6 +1090,91 @@ def _pl_decimals(page):
     return "".join(p if p.startswith("<") else fix(p) for p in parts) + page[i:]
 
 
+TRADER_CSS = (".tj{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:var(--card2);display:grid;gap:8px}"
+              ".tj+.tj{margin-top:12px}.tj h4{margin:0;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;font:600 15px/1.3 var(--f-body)}"
+              ".tj .tag{font:600 11px/1 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;padding:5px 8px;border-radius:999px;border:1px solid currentColor}"
+              ".tj dl{margin:0;display:grid;gap:6px}.tj dt{font:600 11px/1.2 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}"
+              ".tj dd{margin:0}.tj .foot{font-size:12.5px;color:var(--muted)}")
+
+
+def _tj_card(r):
+    """Jeden wpis dziennika tradera: co widzę, co robię i dlaczego, kiedy zmienię zdanie."""
+    zl = lambda v: f"{v:,.0f} zł".replace(",", " ")
+    lab, cls = {"KUP": ("kupno", "pos"), "SPRZEDAJ": ("sprzedaż", "neg"), "TRZYMAJ": ("czekam", "muted")}[r["action"]]
+    amt = f" {zl(r['amount_pln'])}" if r["action"] != "TRZYMAJ" else ""
+    w_after = r["btc"] * r["price_pln"] / r["value"] if r["value"] else 0
+    usd = f'{r["price_usd"]:,.0f}'.replace(",", " ")
+    return (f'<article class="tj"><h4><span>{html.escape(str(r["local"]))}</span><span class="tag {cls}">{lab}{amt}</span>'
+            f'<span class="muted sm">cena {zl(r["price_pln"])} ({usd} USD)</span></h4>'
+            + f'<dl><div><dt>Co widzę</dt><dd>{html.escape(str(r["seen"]))}</dd></div>'
+            f'<div><dt>Co robię i dlaczego</dt><dd>{html.escape(str(r["do"]))}</dd></div>'
+            f'<div><dt>Kiedy zmienię zdanie</dt><dd>{html.escape(str(r["change"]))}</dd></div></dl>'
+            f'<div class="foot">Po decyzji: portfel {zl(r["value"])}, w BTC {w_after * 100:.0f}%, gotówka {zl(r["cash"])}. Źródło ceny: {html.escape(str(r["src"]))}.</div></article>')
+
+
+def _tj_score(TR):
+    zl = lambda v: f"{'+' if v >= 0 else '−'}{abs(v):,.0f} zł".replace(",", " ")
+    sc = TR.get("score") or []
+    d1 = [x["d1"] for x in sc if x.get("d1") is not None]
+    d7 = [x["d7"] for x in sc if x.get("d7") is not None]
+    if not sc:
+        return "Trader nie zawarł jeszcze żadnej transakcji, więc nie ma czego rozliczać."
+    part = lambda arr, lab: (f"po {lab}: {len(arr)} rozliczonych, {sum(v > 0 for v in arr)} na plus, razem {zl(sum(arr))}" if arr else f"po {lab}: jeszcze za wcześnie")
+    return (f"Każdą transakcję porównujemy z tym, co by było, gdyby trader nic nie zrobił (z prowizją). {part(d1, '1 dniu')}; {part(d7, '7 dniach')}. "
+            "Pojedyncze dni to głównie przypadek; sens ma dopiero suma z wielu miesięcy.")
+
+
+def trader_html(TR):
+    """Wirtualny trader: decyzje co ok. 6 godzin, ostatnie wpisy dziennika i rozliczenie transakcji."""
+    if not TR or not TR.get("log"):
+        return ('<div class="card empty"><b>Trader zacznie przy najbliższej aktualizacji w chmurze</b>'
+                '<p class="muted">Decyzje zapadają co ok. 6 godzin; pierwsza pojawi się tutaj z uzasadnieniem.</p></div>')
+    zl = lambda v: f"{v:,.0f} zł".replace(",", " ")
+    diff = TR["value"] - TR["dca_value"]
+    tiles = [("Wartość teraz", zl(TR["value"]), f"wpłacono {zl(TR['deposited'])}"),
+             ("Wynik", f"{(TR['value'] / TR['deposited'] - 1) * 100:+.1f}%".replace(".", ","), "od pierwszej wpłaty 28.10.2026"),
+             ("Względem regularnego kupowania", f'{"+" if diff >= 0 else "−"}{zl(abs(diff))}', f"regularne kupowanie: {zl(TR['dca_value'])}"),
+             ("Teraz w BTC", f"{TR['w'] * 100:.0f}%", f"gotówka {zl(TR['cash'])}, prowizje {zl(TR['fees'])}")]
+    tl = "".join(f'<div class="card tile"><span class="muted sm">{a}</span><b>{b}</b><span class="muted sm">{c}</span></div>' for a, b, c in tiles)
+    cards = "".join(_tj_card(r) for r in TR["log"][:6])
+    return (f'<style>{TRADER_CSS}</style>'
+            f'<h3 class="ct" style="margin:0 0 12px">Wirtualny trader: decyzja co ok. 6 godzin</h3>'
+            f'<p class="muted sm" style="margin:0 0 12px">Od 31.10.2026 trader sprawdza rynek przy każdej aktualizacji (ok. 1:00, 7:00, 13:00 i 19:00 czasu polskiego) '
+            f'i po bieżącej cenie decyduje: kupić, sprzedać czy czekać, i za ile. Cel: jak najwięcej złotych w długim okresie. Każdy wpis mówi, co trader widzi, co robi '
+            f'i przy jakiej cenie zmieni zdanie. Wpisy są tylko dopisywane, nigdy poprawiane. Dotąd {TR["n"]} decyzji, w tym {TR["n_trades"]} transakcji.</p>'
+            f'<div class="tiles">{tl}</div>'
+            f'<div class="panel" style="margin-top:18px"><h3 class="ct">Dziennik (najnowsze na górze)</h3>{cards}'
+            f'<p style="margin:14px 0 0"><a href="dziennik.html"><b>Cały dziennik tradera →</b></a></p></div>'
+            f'<div class="panel" style="margin-top:18px"><h3 class="ct">Czy decyzje się opłacają?</h3><p style="margin:0">{_tj_score(TR)}</p>'
+            f'<p class="note"><b>Uczciwie:</b> częstsze decyzje nie dają same z siebie większego zysku. Kierunku ceny na najbliższe godziny i dni nikt nie umie przewidzieć '
+            f'(nasze testy też tego nie potrafią), a każda transakcja kosztuje prowizję. Dlatego trader handluje tylko wtedy, gdy zmienia się obraz rynku '
+            f'(trend albo poziom wahań), a nie przy każdym drgnięciu ceny. To eksperyment na wirtualnych pieniądzach, nie porada inwestycyjna.</p></div>'
+            f'<h3 class="ct" style="margin:28px 0 12px">Dla porównania: te same zasady, decyzja raz dziennie i test na historii</h3>')
+
+
+def write_journal(TR):
+    """Osobna strona docs/dziennik.html: wszystkie decyzje tradera, czytelnie, od najnowszej."""
+    if not TR or not TR.get("log"):
+        return
+    head = (C.ROOT / "template_head.html").read_text(encoding="utf-8")
+    a, b = head.find(":root{"), head.find("*{box-sizing")
+    tokens = head[a:b] if a >= 0 and b > a else ""
+    cards = "".join(_tj_card(r) for r in TR["log"])
+    page = ('<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+            '<title>Dziennik tradera</title>'
+            '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Manrope:wght@400;600&family=IBM+Plex+Mono:wght@600&display=swap">'
+            f'<style>{tokens}*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--fg);font:400 15.5px/1.6 var(--f-body);'
+            'padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}'
+            'main{max-width:760px;margin:0 auto;padding-block:32px 64px}h1{font:700 30px/1.15 var(--f-display);margin:0 0 8px;text-wrap:balance}'
+            'a{color:var(--accent)}.muted{color:var(--muted)}.sm{font-size:12.5px}.pos{color:var(--green)}.neg{color:var(--red)}'
+            f'{TRADER_CSS}</style></head><body><main>'
+            '<p class="sm"><a href="index.html">← Barometr Bitcoina</a></p><h1>Dziennik wirtualnego tradera</h1>'
+            f'<p class="muted">Decyzja co ok. 6 godzin od 31.10.2026. Portfel {TR["value"]:,.0f} zł przy wpłatach {TR["deposited"]:,.0f} zł; '.replace(",", " ")
+            + f'regularne kupowanie miałoby {TR["dca_value"]:,.0f} zł. Eksperyment na wirtualnych pieniądzach, nie porada inwestycyjna.</p>'.replace(",", " ")
+            + f'<p>{_tj_score(TR)}</p>{cards}</main></body></html>')
+    (C.DASHBOARD_HTML.parent / "dziennik.html").write_text(page, encoding="utf-8")
+
+
 def sim_html(SM):
     """Wirtualny, aktywnie zarządzany portfel: stan, ostatnie decyzje z uzasadnieniem, test na historii."""
     if not SM:
@@ -1493,7 +1578,7 @@ def markets_html(M, df):
             f'<h3 class="ct" style="margin-top:18px">Obligacje</h3><p class="muted sm" style="margin:0 0 8px">Ujemne: gdy obligacje drożeją (ucieczka do bezpieczeństwa), Bitcoin zwykle tanieje.</p>{bnd}</div></div>{an}')
 
 
-def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None, TCH=None, SIM=None, VE=None, JD=None, DT=None):
+def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=None, CF=None, TCH=None, SIM=None, VE=None, JD=None, DT=None, TR=None):
     fr = res["frame"]
     reg_tiles, reg_verdict = regularity_html(Rg)
     scan_head, scan_body = scan_html(S)
@@ -1564,7 +1649,7 @@ def write_dashboard(res, status, log, stats, ens, E, df, S=None, Rg=None, MKT=No
             .replace("%%WHALES%%", whales_html(CF, df, ens))
             .replace("%%TOUCH%%", touch_html(TCH) + judge_html(JD) + volev_html(VE))
             .replace("%%BANDS%%", bands_html(ens))
-            .replace("%%SIMPORT%%", sim_html(SIM))
+            .replace("%%SIMPORT%%", trader_html(TR) + sim_html(SIM))
             .replace("%%SHORTH%%", short_html(ens) + dirtrack_html(DT) + exam_html(ens, TCH, SIM))
             .replace("%%NSERIES%%", n(S["summary"]["n_series"], 0) if S else "kilkaset")
             .replace("%%REGULARITY%%", reg_tiles)

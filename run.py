@@ -34,6 +34,7 @@ import sim
 import sources
 import store
 import touch
+import trader
 import volev
 import whales
 import world
@@ -182,6 +183,14 @@ def update(full=False):
             print(f"  portfel: {SIM['live']['value']:,.0f} zł przy wpłatach {SIM['live']['deposited']:,.0f} zł, w BTC {SIM['live']['w'] * 100:.0f}%")
     except Exception as e:
         print("  [uwaga] wirtualny portfel:", str(e)[:120])
+    TR = None
+    try:                                                         # wirtualny trader: decyzja przy każdej aktualizacji w chmurze
+        TR = trader.run(df, sig_now, VE)
+        if TR.get("log"):
+            r0 = TR["log"][0]
+            print(f'  trader: {r0["local"]} {r0["action"]} {r0["amount_pln"]:,.0f} zł, portfel {TR["value"]:,.0f} zł' + ("" if TR["wrote"] else " (bez nowej decyzji)"))
+    except Exception as e:
+        print("  [uwaga] trader:", str(e)[:120])
     res["forecasts"] = ens["forecasts"]
     for f in res["forecasts"]:
         f["pred_z"] = 0.0
@@ -214,8 +223,10 @@ def update(full=False):
     slim["volev"] = VE
     slim["judge"] = JD
     slim["dirtrack"] = DT
+    slim["trader"] = {k: v for k, v in (TR or {}).items() if k != "log"} or None
     C.LATEST_JSON.write_text(json.dumps(slim, indent=1, ensure_ascii=False, default=str), encoding="utf-8")
-    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF, TCH, SIM, VE, JD, DT)
+    report.write_dashboard(res, status, log, stats, ens, E, df, S, Rg, MKT, CF, TCH, SIM, VE, JD, DT, TR)
+    report.write_journal(TR)
     print_summary(res)
     return res
 
